@@ -1,0 +1,14 @@
+# Regexes (case-insensitive) for lines that leak_check.py flags but are generic science text.
+# "path:<regex>" lines exempt whole files. Keep private exceptions in $DNA_DATA/leak_allow.txt instead.
+# (Written with [x] classes so this file does not itself contain the strings it allows.)
+# Allele tables and docstring examples that coincide with common genotypes
+^\s*"rs\d+": "[ACGTDI]+",
+rs602[5]=CC rs179996[3]=GG
+# Common star-allele results named in generic guidance text
+\*[3]/\*3
+516[G]/G
+"tag (present|absent)"
+# The Big Y preview module is written for the R1b-P311 branch (one of Western Europe's most common)
+R1b1a2a[1]a|R-P31[1]|P31[1]|R-L5[1]
+# GEDCOM's conventional first individual id, used as a default
+"@I[0]@"

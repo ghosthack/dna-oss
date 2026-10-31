@@ -1,0 +1,10 @@
+raw/
+work/
+results/
+/tools
+/.venv
+family.json
+__pycache__/
+*.pyc
+.DS_Store
+demo-data/

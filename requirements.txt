@@ -1,0 +1,19 @@
+# Python packages for the venv that ./fetch_refs.sh creates ($DNA_VENV, default .venv).
+# Only two steps need them: the Y haplogroup step (yhaplo CLI) and scripts/ancestry_ho.py (numpy).
+# Every other script uses the standard library only and runs with the system python3.
+# Needs Python >= 3.12 (numpy 2.5). yhaplo is installed from a pinned commit (needs git).
+numpy==2.5.4
+yhaplo @ git+https://github.com/23andMe/yhaplo.git@99850dfa9ce292eeaf4118807aed3a2b52bd51dc
+
+# yhaplo's dependencies, pinned to the versions the pipeline was tested with.
+click==8.5.0
+markdown-it-py==4.2.0
+mdurl==0.1.2
+pandas==3.1.0
+Pygments==2.21.0
+python-dateutil==3.0.0
+PyYAML==6.0.3
+rich==15.0.0
+rich-click==1.9.9
+six==1.17.0
+tzdata==2026.5

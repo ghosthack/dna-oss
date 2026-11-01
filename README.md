@@ -9,9 +9,9 @@ downloads into a set of static HTML pages: one "Family DNA" page per child, a
 reference data: 1000 Genomes slices, the AADR Human Origins panel, PGS Catalog
 scoring files, Ensembl lookups by rsID, and Haplogrep/yhaplo trees.
 
-> Not medical advice. See [DISCLAIMER.md](DISCLAIMER.md). Consumer chips miss most
-> disease variants and have false positives; confirm anything health-related with
-> a clinical test.
+> **For learning and research only. Not medical advice.** See [DISCLAIMER.md](DISCLAIMER.md).
+> Consumer chips miss most disease variants and have false positives. A clinician must review
+> anything health-related and confirm it with a clinical test. Every generated page carries this notice.
 
 ## What it does
 

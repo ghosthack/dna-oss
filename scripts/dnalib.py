@@ -230,6 +230,16 @@ def text(key, default=""):
     return FAMILY.get("text", {}).get(key, default)
 
 
+# Shown at the top of every generated page. Inline styles so it works with each page's own CSS, light or dark.
+DISCLAIMER_HTML = (
+    '<div role="note" style="border:1.5px solid #c9a227;background:rgba(201,162,39,.12);border-radius:6px;'
+    'padding:8px 12px;margin:0 0 16px;font-size:14px;line-height:1.45">'
+    "<b>For learning and research only. Not medical advice.</b> These results come from consumer genotyping chips "
+    "analysed with open-source research code. They are not a diagnosis and have not been clinically validated. "
+    "Anything health-related, including medication notes, needs review by a clinician (a doctor or genetic "
+    "counselor) and confirmation with a clinical test before any decision about care.</div>")
+
+
 def is_autosome(ch):
     return ch.isdigit()
 

@@ -13,7 +13,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dnalib import RESULTS, imputed_genotypes, label, load_person, name, people as family, person
+from dnalib import DISCLAIMER_HTML, RESULTS, imputed_genotypes, label, load_person, name, people as family, person
 
 # rsid -> (plus-strand variant allele, star allele / label)
 SNPS = {
@@ -306,6 +306,7 @@ table{{border-collapse:collapse;width:100%;font-size:13px}} th,td{{text-align:le
 thead th{{color:var(--muted)}} td.flag{{background:var(--flag)}} li{{margin-bottom:8px}}
 .warn{{border-left:4px solid #d08a00;padding:8px 12px;background:var(--card)}}
 </style></head><body><main>
+{DISCLAIMER_HTML}
 <h1>Family pharmacogenomics</h1>
 <p class="muted">Measured chip genotypes, CPIC allele definitions. Generated locally.</p>
 <p class="warn"><b>Screening only.</b> Consumer chips test a few SNPs per gene and miss rare variants, gene deletions

@@ -1271,8 +1271,9 @@ def person_page(person, date, pgx, apoe, well, pgs, n_people=2):
 
     body = f"""<h1>{esc(name)} — DNA summary for clinicians</h1>
 <p class="meta">{meta}</p>
-<div class="disclaimer"><b>Research-grade consumer genotyping — not a clinical test.</b> Results come from a
-direct-to-consumer SNP array analysed locally{' by family members' if n_people > 1 else ''}. Confirm any actionable finding with a
+<div class="disclaimer"><b>For learning and research only — not medical advice and not a clinical test.</b> Results come from a
+direct-to-consumer SNP array analysed locally{' by family members' if n_people > 1 else ''} with open-source research code that has
+not been clinically validated. A clinician must review these findings and confirm any actionable one with a
 CLIA-certified/clinical test before changing care.</div>
 <h2>1. Medication-relevant findings (pharmacogenomics)</h2><div class="tablewrap">{pgx_html}</div>
 <h2>2. Inherited conditions screened (and APOE)</h2><div class="tablewrap">{cond_html}</div>
@@ -1317,8 +1318,8 @@ def main():
                      f'finding(s), {pgs_txt}</li>')
     body = (f"<h1>DNA summaries for clinicians</h1><p class=meta>One printable page per person"
             f"{' · generated ' + esc(date) if date else ''}.</p>"
-            f'<div class="disclaimer"><b>Research-grade consumer genotyping — not a clinical test.</b> '
-            f"Confirm actionable findings with a clinical test before changing care.</div>"
+            f'<div class="disclaimer"><b>For learning and research only — not medical advice and not a clinical test.</b> '
+            f"A clinician must review these findings and confirm actionable ones with a clinical test before changing care.</div>"
             f"<ul>{''.join(links)}</ul><p class=small>Full reports: <a href=\"../index.html\">results/index.html</a></p>")
     with open(os.path.join(OUT, "index.html"), "w") as fh:
         fh.write(page("DNA summaries for clinicians", body))

@@ -1,7 +1,9 @@
 # Disclaimer
 
-This project is for personal education and curiosity. It is **not a medical device
-and not medical advice**, and it has not been clinically validated.
+This project is **for learning and research only**. It is **not a medical device and not
+medical advice**, it does not diagnose anything, and it has not been clinically validated.
+Every health-related statement it produces, including the "doctor summary" pages and medication
+notes, must be reviewed by a qualified clinician before it informs any decision.
 
 - Consumer genotyping chips test a small, fixed set of positions. They miss most disease-causing
   variants, and their rare-variant calls have high false-positive rates. A "not detected" result

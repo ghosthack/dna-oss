@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dnalib import BCFTOOLS, FAMILY, RAW, RESULTS, WORK, find, load_person, name, person, sex, siblings, text
+from dnalib import DISCLAIMER_HTML, BCFTOOLS, FAMILY, RAW, RESULTS, WORK, find, load_person, name, person, sex, siblings, text
 from landing import TRAIT_LABELS, WELLNESS_SHORT
 from pgs import load_scores, match
 from pgx import DRUGS, note
@@ -525,6 +525,7 @@ thead th{{color:var(--dim);font-weight:600;font-size:12px}} td:first-child{{widt
 @media (prefers-color-scheme:dark){{.warn{{color:#e0a040}}}}
 ul{{margin:0;padding-left:18px}} li{{margin-bottom:8px}}
 </style></head><body><main>
+{DISCLAIMER_HTML}
 <h1>{esc(NAME[A])} vs {esc(NAME[B])}</h1>
 <p class="lede dim">Only the results where the two of you differ; everything not listed is the same. As full {pair} you
 share about half your DNA, with each of you getting a different random half of mom's and dad's.
@@ -533,8 +534,8 @@ share about half your DNA, with each of you getting a different random half of m
 {f'<section class="card"><div class="stats">{stat_html}</div></section>' if stat_html else ""}
 {"".join(sections)}
 </div>
-<p class="dim" style="margin-top:24px">Screening and educational use only — not a diagnosis. Confirm anything
-health-relevant with a clinical test.</p>
+<p class="dim" style="margin-top:24px">For learning and research only — not medical advice or a diagnosis. A clinician
+must review anything health-relevant and confirm it with a clinical test.</p>
 </main></body></html>"""
     path = os.path.join(RESULTS, f"diffs_{B}.html")
     with open(path, "w") as fh:

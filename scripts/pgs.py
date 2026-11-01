@@ -19,7 +19,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dnalib  # noqa: E402
-from dnalib import BCFTOOLS, RESULTS, TOOLS, WORK, load_person
+from dnalib import DISCLAIMER_HTML, BCFTOOLS, RESULTS, TOOLS, WORK, load_person
 
 KG = ("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/"
       "working/20220422_3202_phased_SNV_INDEL_SV/1kGP_high_coverage_Illumina.{chrom}.filtered."
@@ -240,6 +240,7 @@ main{{max-width:960px;margin:0 auto}} h1{{font-size:26px;margin:0 0 4px}} h2{{fo
 table{{border-collapse:collapse;width:100%;font-size:14px}} th,td{{text-align:left;vertical-align:top;padding:8px;border-bottom:1px solid var(--line)}}
 thead th{{color:var(--muted)}} .warn{{border-left:4px solid #d08a00;padding:8px 12px;background:var(--card)}}
 </style></head><body><main>
+{DISCLAIMER_HTML}
 <h1>Polygenic scores — {esc(person)}</h1>
 <p class="muted">23andMe imputed genotypes (GRCh38) scored with PGS Catalog harmonized weights; percentiles against
 unrelated 1000 Genomes high-coverage samples scored on the same variants. Your scores use imputed dosages, which are

@@ -12,7 +12,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dnalib import (CHROM_LEN, RESULTS, WORK, children, find, is_autosome, is_het, load_person, people as family,
+from dnalib import (DISCLAIMER_HTML, CHROM_LEN, RESULTS, WORK, children, find, is_autosome, is_het, load_person, people as family,
                     person, role, sex, siblings, text)
 
 EXPECTED = {  # kinship coefficient, by role pair (self and siblings are all "child")
@@ -331,6 +331,7 @@ table{{border-collapse:collapse;width:100%;font-size:13px}} th,td{{text-align:le
 th{{color:var(--muted);font-weight:600}} svg{{width:100%;height:auto}} .lbl{{font-size:11px;fill:var(--muted)}}
 .pat{{fill:var(--pat)}} .none{{fill:var(--none)}} .key span{{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin:0 6px 0 14px}}
 </style></head><body><main>
+{DISCLAIMER_HTML}
 <h1>Family DNA report</h1>
 <p class="muted">Measured genotypes only ({html.escape(chips_note(me))}). Generated locally.</p>
 {painted}

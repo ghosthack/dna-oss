@@ -18,7 +18,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dnalib import FAMILY, RAW, RESULTS, WORK, children, label, people as family_people, person, role, sex, text
+from dnalib import DISCLAIMER_HTML, FAMILY, RAW, RESULTS, WORK, children, label, people as family_people, person, role, sex, text
 from pgs import LOCAL_LABELS
 from pgx import DRUGS, note
 from pigmentation import MC1R_STRONG
@@ -1539,6 +1539,7 @@ a.report{{display:block;text-decoration:none;color:inherit}} a.report:hover{{bor
 .report b,.report a{{color:var(--accent)}}
 .note{{font-size:13px;color:var(--dim);margin-top:24px;border-top:1px solid var(--line);padding-top:12px}}
 </style></head><body><main>
+{DISCLAIMER_HTML}
 <h1>Family DNA</h1>
 <p class="lede dim">{chips_from} raw data, analysed locally. The short version is below; full reports are linked at the bottom.
 {switch}</p>
@@ -1595,8 +1596,8 @@ with only the clinically relevant findings and suggested discussion points</div>
 </div>
 </div>
 
-<p class="note">Screening and educational use only — not a diagnosis. Consumer chips miss rare variants and gene copy-number changes;
-confirm anything health-relevant with a clinical test and a doctor or genetic counselor.</p>
+<p class="note">For learning and research only — not medical advice or a diagnosis. Consumer chips miss rare variants and gene
+copy-number changes; a doctor or genetic counselor must review anything health-relevant and confirm it with a clinical test.</p>
 </main></body></html>"""
     path = os.path.join(RESULTS, PAGES[viewer])
     with open(path, "w") as fh:

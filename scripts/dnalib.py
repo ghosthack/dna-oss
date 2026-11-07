@@ -202,6 +202,18 @@ def append_gzip(path, text):
     os.replace(tmp, path)
 
 
+def read_text(path):
+    """A whole text file, with the file closed again (a bare open().read() leaves that to the garbage collector)."""
+    with open(path) as fh:
+        return fh.read()
+
+
+def read_column(path, col):
+    """Column `col` (0-based) of a tab-separated file, stripped."""
+    with open(path) as fh:
+        return [line.split("\t")[col].strip() for line in fh]
+
+
 def write_atomic(path, text):
     tmp = f"{path}.tmp"
     with open(tmp, "w") as fh:

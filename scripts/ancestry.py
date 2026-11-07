@@ -33,7 +33,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dnalib  # noqa: E402
-from dnalib import BCFTOOLS, KG_PANEL, RESULTS, WORK, kg_sample_files  # noqa: E402
+from dnalib import BCFTOOLS, KG_PANEL, RESULTS, WORK, kg_sample_files, read_text  # noqa: E402
 OUT = os.path.join(WORK, "ancestry")
 REF = os.path.join(OUT, "ref")
 WIN = os.path.join(REF, "win")
@@ -192,7 +192,7 @@ def weighted_jackknife_se(reps, sizes, full):
 
 def load_samples():
     kg_sample_files(PGS_REF)  # shared with pgs.py; fetched here when pgs.py hasn't run (e.g. --no-pgs)
-    samples = open(os.path.join(PGS_REF, "samples.txt")).read().split()
+    samples = read_text(os.path.join(PGS_REF, "samples.txt")).split()
     pop, founder = {}, set()
     with open(os.path.join(PGS_REF, "ped.txt")) as fh:
         next(fh)
@@ -238,7 +238,7 @@ def family_calls(person, ref_rows):
     regfile = os.path.join(OUT, "family", "candidates.tsv")
     text = "".join(f"{r[0]}\t{r[1]}\n" for r in ref_rows)
     digest = hashlib.sha1(text.encode()).hexdigest()[:12]
-    if not os.path.exists(regfile) or open(regfile).read() != text:
+    if not os.path.exists(regfile) or read_text(regfile) != text:
         with open(regfile, "w") as fh:
             fh.write(text)
     cache = os.path.join(OUT, "family", f"{person}.{digest}.tsv.gz")

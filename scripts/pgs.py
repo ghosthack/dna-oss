@@ -114,10 +114,10 @@ def fetch_reference(chroms):
         """Fetch only positions not queried before; append them to the cache."""
         path = os.path.join(ref_dir, f"{chrom}.tsv.gz")
         queried_path = os.path.join(ref_dir, f"{chrom}.queried.txt")
-        wanted = [l.split("\t")[1].strip() for l in open(os.path.join(OUT, f"regions.{chrom}.tsv"))]
+        wanted = dnalib.read_column(os.path.join(OUT, f"regions.{chrom}.tsv"), 1)
         queried = set()
         if os.path.exists(queried_path):
-            queried = set(open(queried_path).read().split())
+            queried = set(dnalib.read_text(queried_path).split())
         elif os.path.exists(path):  # cache from before queried-tracking: trust the positions it holds
             with gzip.open(path, "rt") as fh:
                 queried = {line.split("\t", 2)[1] for line in fh}
@@ -140,7 +140,7 @@ def fetch_reference(chroms):
 
 def reference_samples():
     ref_dir = os.path.join(OUT, "ref")
-    samples = open(os.path.join(ref_dir, "samples.txt")).read().split()
+    samples = dnalib.read_text(os.path.join(ref_dir, "samples.txt")).split()
     pop = {}
     with open(os.path.join(ref_dir, "ped.txt")) as fh:
         next(fh)

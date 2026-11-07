@@ -73,8 +73,8 @@ def kinship(a, b):
         het_b += hb
         hethet += ha and hb
         ibs0 += not ha and not hb and ga != gb
-    phi = (hethet - 2 * ibs0) / (het_a + het_b)
-    return {"snps": n, "kinship": round(phi, 4), "ibs0_pct": round(ibs0 / n * 100, 3)}
+    phi = (hethet - 2 * ibs0) / max(1, het_a + het_b)  # max(): no shared heterozygous sites → kinship 0
+    return {"snps": n, "kinship": round(phi, 4), "ibs0_pct": round(ibs0 / max(1, n) * 100, 3)}
 
 
 def king_degree(phi, ibs0_pct):
@@ -102,7 +102,7 @@ def mendel_trio(child, mom, dad):
         n += 1
         ok = (c[0] in m and c[1] in d) or (c[1] in m and c[0] in d)
         errors += not ok
-    return {"snps": n, "errors": errors, "error_rate_pct": round(errors / n * 100, 4)}
+    return {"snps": n, "errors": errors, "error_rate_pct": round(errors / max(1, n) * 100, 4)}
 
 
 def mendel_duo(child, parent):
@@ -113,7 +113,7 @@ def mendel_duo(child, parent):
             continue
         n += 1
         errors += not set(c) & set(parent[rs][2])
-    return {"snps": n, "errors": errors, "error_rate_pct": round(errors / n * 100, 4)}
+    return {"snps": n, "errors": errors, "error_rate_pct": round(errors / max(1, n) * 100, 4)}
 
 
 def lineage_match(people, chrom):

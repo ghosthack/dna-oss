@@ -131,8 +131,12 @@ def med_cell(gene, alleles):
         return COPY_WORDS[gene][0] if hits else COPY_WORDS[gene][1]
     if gene == "TPMT" and {"*3B", "*3C"} <= set(hits):
         hits = ["*3A"]
+    if gene == "CYP2D6" and "*4" in hits and "*10" in hits:
+        hits.remove("*10")  # 100C>T (rs1065852) is part of the *4 haplotype, as in pgx.py
     if gene == "G6PD":  # X-linked: grandpa's only X went to mom, so this is his full genotype
-        deficient = (have.get("rs1050828") == "T" and have.get("rs1050829") == "C") or have.get("rs5030868") == "A"
+        # A- = 202A on 376G; 202A alone counts when 376 wasn't resolved (same rule as pgx.py)
+        deficient = ((have.get("rs1050828") == "T" and have.get("rs1050829", "C") == "C")
+                     or have.get("rs5030868") == "A")
         return "Deficient" if deficient else "Normal"
     label = "+".join(hits) if hits else "*1"
     return label + ("?" if partial and not hits else "")

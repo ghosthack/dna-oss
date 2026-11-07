@@ -16,7 +16,7 @@ What is checked (every file from git ls-files --cached --others --exclude-standa
                or anywhere when distinctive), mt and Y haplogroup labels (very generic ones such as "R1b" are allowed),
                and "rsNNN" written next to a two-letter genotype that equals a family member's measured genotype.
 
-DATA is $DNA_DATA, else ~/Projects/dna if it exists. Without a family.json only the generic checks run.
+DATA is $DNA_DATA, else the repo root if it holds a family.json. Without a family.json only the generic checks run.
 
 The report never prints a private value: only the category, file:line and a masked hint (first letter and length);
 genotype hits print the rsID only. Paths that contain a denylisted word are masked as well.
@@ -109,8 +109,9 @@ def data_dir(arg):
         return os.path.abspath(os.path.expanduser(arg))
     if os.environ.get("DNA_DATA"):
         return os.path.abspath(os.path.expanduser(os.environ["DNA_DATA"]))
-    d = os.path.expanduser("~/Projects/dna")
-    return d if os.path.isdir(d) else None
+    # Same default as dnalib.DATA: the repo itself, used only if someone put their family.json there.
+    d = os.path.dirname(HERE)
+    return d if os.path.exists(os.path.join(d, "family.json")) else None
 
 
 def common_words():
@@ -430,7 +431,7 @@ def load_allow(*paths):
 def main():
     ap = argparse.ArgumentParser(description="Fail if files to be committed contain private family data.")
     ap.add_argument("--repo", help="repository to scan (default: the git repo of the current directory)")
-    ap.add_argument("--data", help="private data folder (default: $DNA_DATA, else ~/Projects/dna)")
+    ap.add_argument("--data", help="private data folder (default: $DNA_DATA, else the repo root if it has family.json)")
     ap.add_argument("--staged", action="store_true", help="scan the staged (index) content instead of the work tree")
     ap.add_argument("--no-genotypes", action="store_true", help="skip loading raw genotype files")
     args = ap.parse_args()

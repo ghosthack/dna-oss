@@ -117,8 +117,7 @@ def rescore(rep, p, g):
         return None
     cat, snps, fn = REPORT_FN[rep]
     g = {rs: g.get(rs) for rs in snps}
-    ok = (all(v for rs, v in g.items() if rs not in W.OPTIONAL)
-          or ((cat == "Carrier status" or rep in W.ANY_CALLED) and any(g.values())))
+    ok = W.report_ok(cat, rep, g)
     return (fn(g, sex(p)) if fn in W.BY_SEX else fn(g)) if ok else "Not determinable (no-call)"
 
 
@@ -199,7 +198,7 @@ def hla_part(pid, a, b):
 
 
 def table(head, rows):
-    return ('<div class="tablewrap"><table><thead><tr>' + "".join(f"<th>{h}</th>" for h in head) + "</tr></thead><tbody>"
+    return ('<div class="tablewrap"><table><thead><tr>' + "".join(f"<th>{esc(h)}</th>" for h in head) + "</tr></thead><tbody>"
             + "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows) + "</tbody></table></div>")
 
 
@@ -289,12 +288,12 @@ def ancestry_23(B):
         return hit[1] if hit else "—"
     picks = (FAMILY.get("ancestry") or {}).get("sibling_diff_rows")
     if picks:
-        return [[esc(lab), pct(A, pre), pct(B, pre)]
+        return [[esc(lab), esc(pct(A, pre)), esc(pct(B, pre))]
                 for lab, pre in ((x, x) if isinstance(x, str) else x for x in picks)]
     if not (trees[A] and trees[B]):
         return []
     val = {p: {x[0]: x[1] for x in trees[p]} for p in (A, B)}
-    return [[esc(lab), val[A].get(lab, "—"), val[B].get(lab, "—")]
+    return [[esc(lab), esc(val[A].get(lab, "—")), esc(val[B].get(lab, "—"))]
             for lab in dict.fromkeys(x[0] for p in (A, B) for x in trees[p]) if val[A].get(lab) != val[B].get(lab)]
 
 
@@ -441,7 +440,8 @@ def write_page(B):
         gp = (FAMILY.get("maternal_grandfather") or {}).get("name", "")
         gp = gp.rsplit(" ", 1)[0] if " " in gp else gp  # first name(s), without the surname
         rough = next((f"; {NAME[x]}'s is rougher (older chip)" for x, y in ((B, A), (A, B)) if older(x, y)), "")
-        stats.append((f"{kids[A]['grandma_share_pct']:.0f}% · {kids[B]['grandma_share_pct']:.0f}%",
+        pct = lambda k: "—" if kids[k].get("grandma_share_pct") is None else f"{kids[k]['grandma_share_pct']:.0f}%"
+        stats.append((f"{pct(A)} · {pct(B)}",
                       f"Mom's half that is grandma's ({NAME[A]} · {NAME[B]})",
                       f"The rest is grandpa{' ' + gp if gp else ''}'s. 40–60% is normal{rough}."))
     stat_html = "".join(f'<div class="stat"><div class="num">{esc(a)}</div><div class="label">{esc(b)}</div>'

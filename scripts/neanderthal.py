@@ -34,16 +34,10 @@ import json
 import os
 import subprocess
 import sys
-import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dnalib import BCFTOOLS, RESULTS, WORK
+from dnalib import BCFTOOLS, KG_PANEL as KG, RESULTS, WORK, append_gzip, kg_sample_files, write_atomic
 
-KG = ("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/"
-      "working/20220422_3202_phased_SNV_INDEL_SV/1kGP_high_coverage_Illumina.{chrom}.filtered."
-      "SNV_INDEL_SV_phased_panel.vcf.gz")
-KG_PED = ("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/"
-          "20130606_g1k_3202_samples_ped_population.txt")
 OUT = os.path.join(WORK, "neanderthal")
 SPRIME_GLOB = os.path.join(OUT, "sprime", "mendeley_data", "IBS.chr*.ND_match")
 CHAIN = os.path.join(OUT, "hg19ToHg38.over.chain.gz")
@@ -205,21 +199,11 @@ def fetch_reference(chroms, name):
             except RuntimeError:
                 if attempt == 2:
                     raise
-        with gzip.open(path, "at") as fh:
-            fh.write(text)
-        with open(queried_path, "w") as fh:
-            fh.write("\n".join(sorted(queried | set(new), key=int)) + "\n")
+        append_gzip(path, text)
+        write_atomic(queried_path, "\n".join(sorted(queried | set(new), key=int)) + "\n")
         return chrom, f"+{text.count(chr(10))} records for {len(new)} new positions"
 
-    samples_path = os.path.join(REF_DIR, "samples.txt")
-    if not os.path.exists(samples_path):
-        names = subprocess.run([BCFTOOLS, "query", "-l", KG.format(chrom="chr22")], capture_output=True,
-                               text=True, cwd=REF_DIR, check=True).stdout
-        with open(samples_path, "w") as fh:
-            fh.write(names)
-    ped_path = os.path.join(REF_DIR, "ped.txt")
-    if not os.path.exists(ped_path):
-        urllib.request.urlretrieve(KG_PED, ped_path)
+    kg_sample_files(REF_DIR)
     with concurrent.futures.ThreadPoolExecutor(4) as pool:
         for chrom, status in pool.map(one, chroms):
             print(f"  1000G {chrom}: {status}", flush=True)
@@ -319,10 +303,13 @@ def main():
             pd = {p: (m[2] if a else 2 - m[2]) for p, (m, a) in hits.items()}
             rd = []
             for i in keep:
-                g = r[2][i]
-                n = (g[0] == "1") + (len(g) > 2 and g[2] == "1")
+                g = r[2][i].replace("|", "").replace("/", "")
+                if len(g) != 2 or not set(g) <= {"0", "1"}:  # missing reference genotype: skip the tag
+                    break
+                n = g.count("1")
                 rd.append(n if r_alt else 2 - n)
-            rows.append((pd, rd))
+            else:
+                rows.append((pd, rd))
         if not rows:
             continue
         used_segs += 1

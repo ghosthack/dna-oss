@@ -14,7 +14,7 @@ original sources, and each keeps its own license. Please cite the sources if you
 | UCSC hg19ToHg38 liftover chain | Coordinate conversion | Freely available |
 | NCBI rCRS (NC_012920.1) | mtDNA reference | Public domain (NCBI) |
 | [world-atlas](https://github.com/topojson/world-atlas) 2.0.2 / Natural Earth | Ancestry map | ISC / public domain |
-| [Ensembl REST](https://rest.ensembl.org) | rsID positions and alleles | Free data, Apache-2.0 software |
+| [Ensembl REST](https://rest.ensembl.org) | rsID positions and alleles for the demo generator and the `scripts/ensembl.py` developer helper (not used on family data) | Free data, Apache-2.0 software |
 | numpy, pandas and yhaplo's dependencies | Python runtime | BSD/MIT/Apache-style |
 
 The pharmacogenomic, trait and pigmentation rules in `scripts/` are re-implemented from published guidance (CPIC,

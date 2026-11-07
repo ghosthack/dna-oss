@@ -15,17 +15,12 @@ import json
 import os
 import subprocess
 import sys
-import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dnalib  # noqa: E402
 from dnalib import DISCLAIMER_HTML, BCFTOOLS, RESULTS, TOOLS, WORK, load_person
 
-KG = ("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/"
-      "working/20220422_3202_phased_SNV_INDEL_SV/1kGP_high_coverage_Illumina.{chrom}.filtered."
-      "SNV_INDEL_SV_phased_panel.vcf.gz")
-KG_PED = ("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/"
-          "20130606_g1k_3202_samples_ped_population.txt")
+KG = dnalib.KG_PANEL
 CHROMS = [f"chr{c}" for c in range(1, 23)]
 PGS_DIR = os.path.join(TOOLS, "pgs")
 OUT = os.path.join(WORK, "pgs")
@@ -35,7 +30,11 @@ LOCAL_LABELS = {"IBS": "Iberian (Spain)", "TSI": "Tuscan (Italy)", "GBR": "Briti
                 "FIN": "Finnish"}
 LOCAL = dnalib.FAMILY.get("ancestry", {}).get("pgs_local_pop")
 GROUPS = (([(LOCAL, LOCAL_LABELS.get(LOCAL, LOCAL))] if LOCAL else [])
-          + [("EUR", "European"), ("AMR", "Admixed American"), ("ALL", "All 1000 Genomes")])
+          + [("EUR", "European"), ("AMR", "Admixed American"), ("ALL", "All 1000 Genomes")])  # a list: see score_all
+COMP = str.maketrans("ACGT", "TGCA")
+# Palindromic (A/T, C/G) variants read the same on both strands. They are kept only when the score file's effect
+# allele frequency is far enough from 50% to tell its strand from the 1000 Genomes European frequency.
+PALINDROME_MIN_DIFF = 0.1  # both frequencies must be at least this far from 0.5
 
 
 def load_scores():
@@ -59,8 +58,12 @@ def load_scores():
                 other = get("other_allele") or get("hm_inferOtherAllele")
                 if "/" in other:
                     other = ""
+                try:
+                    freq = float(get("allelefrequency_effect"))
+                except ValueError:
+                    freq = None
                 rows.append((f"chr{chrom}", int(pos), get("effect_allele").upper(), other.upper(),
-                             float(get("effect_weight"))))
+                             float(get("effect_weight")), freq))
         # published size from the header; rows on chrX or without a GRCh38 harmonized position are dropped above
         published = int(meta.get("variants_number", "") or 0) or len(rows)
         scores[meta["pgs_id"]] = {"trait": meta.get("trait_reported", ""), "name": meta.get("pgs_name", ""),
@@ -125,21 +128,11 @@ def fetch_reference(chroms):
         with open(regions, "w") as fh:
             fh.writelines(f"{chrom}\t{p}\n" for p in new)
         text = bcf_query(KG.format(chrom=chrom), regions, "%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n", ref_dir)
-        with gzip.open(path, "at") as fh:  # appends a gzip member; gzip.open reads them all
-            fh.write(text)
-        with open(queried_path, "w") as fh:
-            fh.write("\n".join(sorted(queried | set(new), key=int)) + "\n")
+        dnalib.append_gzip(path, text)  # a new gzip member; gzip.open reads them all
+        dnalib.write_atomic(queried_path, "\n".join(sorted(queried | set(new), key=int)) + "\n")
         return chrom, f"+{text.count(chr(10))} records for {len(new)} new positions"
 
-    samples_path = os.path.join(ref_dir, "samples.txt")
-    if not os.path.exists(samples_path):
-        names = subprocess.run([BCFTOOLS, "query", "-l", KG.format(chrom="chr22")], capture_output=True,
-                               text=True, cwd=ref_dir, check=True).stdout
-        with open(samples_path, "w") as fh:
-            fh.write(names)
-    ped_path = os.path.join(ref_dir, "ped.txt")
-    if not os.path.exists(ped_path):
-        urllib.request.urlretrieve(KG_PED, ped_path)
+    dnalib.kg_sample_files(ref_dir)
     with concurrent.futures.ThreadPoolExecutor(4) as pool:
         for chrom, status in pool.map(one, chroms):
             print(f"  1000G {chrom}: {status}", flush=True)
@@ -169,11 +162,39 @@ def match(cands, effect, other):
     return None, None
 
 
+def palindromic(rec, effect, other):
+    """True when the score variant's two alleles are complementary (A/T or C/G)."""
+    other = other or (rec[1] if effect == rec[0] else rec[0])
+    return {effect, other} in ({"A", "T"}, {"C", "G"})
+
+
+def strand_check(freq, ref_freq):
+    """For a palindromic variant: "keep" (same strand), "flip" (other strand) or None (can't tell, drop).
+    freq: effect allele frequency reported in the score file; ref_freq: the same allele's 1000G EUR frequency."""
+    if freq is None or ref_freq is None:
+        return None
+    if abs(freq - 0.5) < PALINDROME_MIN_DIFF or abs(ref_freq - 0.5) < PALINDROME_MIN_DIFF:
+        return None
+    return "keep" if (freq > 0.5) == (ref_freq > 0.5) else "flip"
+
+
+def alt_count(g):
+    """'0|1' style genotype (separators stripped or not) -> number of ALT alleles; None if missing."""
+    g = g.replace("|", "").replace("/", "")
+    if len(g) != 2 or not set(g) <= {"0", "1"}:
+        return None
+    return g.count("1")
+
+
 def score_all(scores, people):
     """people: {person: dosages}. Uses only variants present for every person and in the reference,
     so everyone (and the reference) is scored on the same set."""
     samples, pop = reference_samples()
     keep = [i for i, s in enumerate(samples) if s in pop]
+    eur = [i for i in keep if pop[samples[i]][1] == "EUR"]
+    if LOCAL and not any(LOCAL in pop[samples[i]] for i in keep):
+        print(f"warning: family.json pgs_local_pop {LOCAL!r} is not a 1000 Genomes population; column dropped")
+        GROUPS[:] = [g for g in GROUPS if g[0] != LOCAL]
     ref_sites = {}
     for path in sorted(glob.glob(os.path.join(OUT, "ref", "chr*.tsv.gz"))):
         with gzip.open(path, "rt") as fh:
@@ -182,24 +203,40 @@ def score_all(scores, people):
                 ref_sites.setdefault((f[0], int(f[1])), []).append((f[2], f[3], f[4:]))
     results = {p: {} for p in people}
     for pid, s in scores.items():
-        totals, ref_scores, used = {p: 0.0 for p in people}, [0.0] * len(keep), 0
-        for chrom, pos, effect, other, w in s["variants"]:
+        totals, ref_scores, used, ambiguous = {p: 0.0 for p in people}, [0.0] * len(keep), 0, 0
+        for chrom, pos, effect, other, w, freq in s["variants"]:
             r, r_alt = match(ref_sites.get((chrom, pos), []), effect, other)
+            if r is None:
+                continue
+            if palindromic(r, effect, other):
+                counts = [alt_count(r[2][i]) for i in eur]
+                counts = [n for n in counts if n is not None]
+                alt_f = sum(counts) / (2 * len(counts)) if counts else None
+                ref_freq = None if alt_f is None else alt_f if r_alt else 1 - alt_f
+                decision = strand_check(freq, ref_freq)
+                if decision is None:
+                    ambiguous += 1
+                    continue
+                if decision == "flip":
+                    effect, other = effect.translate(COMP), other.translate(COMP)
+                    r, r_alt = match(ref_sites.get((chrom, pos), []), effect, other)
             hits = {p: match(d.get((chrom, pos), []), effect, other) for p, d in people.items()}
-            if r is None or any(m is None for m, _ in hits.values()):
+            if any(m is None for m, _ in hits.values()):
+                continue
+            ref_n = [alt_count(r[2][i]) for i in keep]
+            if any(n is None for n in ref_n):  # a missing reference genotype would bias the distribution
                 continue
             used += 1
             for p, (m, m_alt) in hits.items():
                 totals[p] += w * (m[2] if m_alt else 2 - m[2])
-            gts = r[2]
-            for j, i in enumerate(keep):
-                g = gts[i]
-                n = (g[0] == "1") + (len(g) > 2 and g[2] == "1")
+            for j, n in enumerate(ref_n):
                 ref_scores[j] += w * (n if r_alt else 2 - n)
         dist = {}
         for code, _ in GROUPS:
             vals = sorted(v for j, v in enumerate(ref_scores)
                           if code == "ALL" or code in pop[samples[keep[j]]])
+            if len(vals) < 2:
+                continue
             mean = sum(vals) / len(vals)
             sd = (sum((v - mean) ** 2 for v in vals) / (len(vals) - 1)) ** 0.5
             dist[code] = (vals, mean, sd)
@@ -208,12 +245,17 @@ def score_all(scores, people):
                              "z": round((total - mean) / sd, 2)}
                       for code, (vals, mean, sd) in dist.items()}
             results[p][pid] = {"trait": s["trait"], "variants_total": len(s["variants"]), "variants_used": used,
+                               "variants_strand_ambiguous": ambiguous,
                                "variants_published": s["published"], "score": total, "groups": groups}
     return results
 
 
 def render(person, results, path):
     esc = html.escape
+    if not results:  # e.g. every score is sex-specific for the other sex
+        if os.path.exists(path):
+            os.remove(path)
+        return
     order = sorted(results.items(), key=lambda kv: kv[1]["trait"])
     rows = []
     for pid, r in order:
@@ -228,7 +270,7 @@ def render(person, results, path):
     head = "".join(f"<th>{esc(label)}<div class=muted>n={next(iter(results.values()))['groups'][c]['n']}</div></th>"
                    for c, label in GROUPS)
     local_note = (f" The {esc(LOCAL_LABELS.get(LOCAL, LOCAL).split(' (')[0])} ({esc(LOCAL)}) column changes the comparison "
-                  "group, not the score's accuracy." if LOCAL else "")
+                  "group, not the score's accuracy." if any(c == LOCAL for c, _ in GROUPS) else "")
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Polygenic Scores</title>
 <style>

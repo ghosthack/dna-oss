@@ -183,14 +183,21 @@ def hemochromatosis(g):
 
 def clotting(g, sex=None):
     # F5 Leiden rs6025 T (R534Q, gene on −); F2 G20210A rs1799963 A (gene on +, 3'UTR).
+    # Either SNP can be missing (rs1799963 has no regular probe on some chips): report what was called.
     fvl, pt = count(g["rs6025"], "T"), count(g["rs1799963"], "A")
     found = [f"Factor V Leiden ×{fvl}"] * bool(fvl) + [f"Prothrombin G20210A ×{pt}"] * bool(pt)
+    untested = ["Factor V Leiden"] * (fvl is None) + ["prothrombin G20210A"] * (pt is None)
+    caveat = f" ({' and '.join(untested)} not tested)" if untested else ""
     if not found:
-        return "No Factor V Leiden or prothrombin variant"
+        if fvl is None and pt is None:
+            return "Not determinable (no-call)"
+        return ("No Factor V Leiden or prothrombin variant" if not untested else
+                ("No Factor V Leiden variant (prothrombin G20210A not tested)" if pt is None
+                 else "No prothrombin G20210A variant (F5 Leiden probe not tested)"))
     when = {"F": "estrogen pills/HRT, surgery, pregnancy, long flights",
             "M": "surgery, immobilisation, long flights"}.get(sex, "surgery, long flights and, in women, estrogen "
                                                                   "pills/HRT and pregnancy")
-    return ", ".join(found) + ": raised clot risk — matters for " + when
+    return ", ".join(found) + ": raised clot risk — matters for " + when + caveat
 
 
 def alpha1(g):
@@ -414,8 +421,11 @@ def phased_calls(person, rsids):
     out = {}
     for path in glob.glob(os.path.join(RAW, person, "phased_genotype_data_*.zip")):
         z = zipfile.ZipFile(path)
-        name = next(n for n in z.namelist() if n.startswith("phased_genome_")
-                    and "statistical" not in n and "parent" not in n)
+        name = next((n for n in z.namelist() if n.startswith("phased_genome_")
+                     and "statistical" not in n and "parent" not in n), None)
+        if name is None:  # an unexpected layout: skip this optional cross-check rather than stop the run
+            print(f"note: no plain phased_genome_* file in {os.path.basename(path)}; skipped")
+            continue
         with z.open(name) as fh:
             for line in fh:
                 f = line.decode().strip().split("\t")
@@ -424,9 +434,17 @@ def phased_calls(person, rsids):
     return out
 
 
-OPTIONAL = {"rs4713586"}  # caveat-only SNP: a no-call doesn't block the report
-# "Any variant detected" reports: like carrier panels, report on whichever probes were called.
-ANY_CALLED = {"Parkinson's genes", "Hereditary amyloidosis", "Kidney disease (APOL1)"}
+# Caveat-only or cross-check SNPs: a no-call doesn't block the report (hla_b27 copes without its cross-check).
+OPTIONAL = {"rs4713586", "rs116488202"}
+# "Any variant detected" reports: like carrier panels, report on whichever probes were called (their functions name
+# what wasn't tested). A missing prothrombin probe must not hide a Factor V Leiden result.
+ANY_CALLED = {"Parkinson's genes", "Hereditary amyloidosis", "Kidney disease (APOL1)", "Inherited clotting"}
+
+
+def report_ok(category, name, g):
+    """Whether report `name` can be scored from genotypes g ({rsid: genotype or None})."""
+    return (all(v for rs, v in g.items() if rs not in OPTIONAL)
+            or ((category == "Carrier status" or name in ANY_CALLED) and any(g.values())))
 BY_SEX = {clotting, hoxb13}  # wording depends on family.json sex (None = unknown: neutral wording)
 
 
@@ -446,8 +464,7 @@ def main():
             g = {rs: data[rs][2] if rs in data else filled.get(rs) for rs in snps}
             genos = " ".join(f"{rs}={g[rs] or '--'}{'*' if rs in filled else ''}" for rs in snps)
             # Carrier panels report on whatever probes were called; other reports need every SNP.
-            ok = (all(v for rs, v in g.items() if rs not in OPTIONAL)
-                  or ((category == "Carrier status" or name in ANY_CALLED) and any(g.values())))
+            ok = report_ok(category, name, g)
             result = (fn(g, sex_of(p)) if fn in BY_SEX else fn(g)) if ok else "Not determinable (no-call)"
             rows.append((p, category, name, gene, genos, result))
             print(f"{p:17s} {name:24s} {genos:34s} {result}")

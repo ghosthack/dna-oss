@@ -36,7 +36,8 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dnalib import BCFTOOLS, KG_PANEL as KG, RESULTS, WORK, append_gzip, kg_sample_files, write_atomic
+from dnalib import (BCFTOOLS, KG_PANEL as KG, RESULTS, WORK, append_gzip, kg_sample_files, read_column,
+                    read_text, write_atomic)
 
 OUT = os.path.join(WORK, "neanderthal")
 SPRIME_GLOB = os.path.join(OUT, "sprime", "mendeley_data", "IBS.chr*.ND_match")
@@ -196,8 +197,8 @@ def fetch_reference(chroms, name):
     def one(chrom):
         path = os.path.join(REF_DIR, f"{chrom}.tsv.gz")
         queried_path = os.path.join(REF_DIR, f"{chrom}.queried.txt")
-        wanted = [l.split("\t")[1].strip() for l in open(os.path.join(OUT, f"{name}.{chrom}.tsv"))]
-        queried = set(open(queried_path).read().split()) if os.path.exists(queried_path) else set()
+        wanted = read_column(os.path.join(OUT, f"{name}.{chrom}.tsv"), 1)
+        queried = set(read_text(queried_path).split()) if os.path.exists(queried_path) else set()
         new = [p for p in wanted if p not in queried]
         if not new:
             return chrom, "cached"
@@ -222,7 +223,7 @@ def fetch_reference(chroms, name):
 
 
 def load_reference():
-    samples = open(os.path.join(REF_DIR, "samples.txt")).read().split()
+    samples = read_text(os.path.join(REF_DIR, "samples.txt")).split()
     pop = {}
     with open(os.path.join(REF_DIR, "ped.txt")) as fh:
         next(fh)

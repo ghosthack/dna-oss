@@ -171,7 +171,8 @@ class DisclaimerTest(unittest.TestCase):
         for name in sorted(os.listdir(scripts)):
             if not name.endswith(".py"):
                 continue
-            src = open(os.path.join(scripts, name), encoding="utf-8").read()
+            with open(os.path.join(scripts, name), encoding="utf-8") as fh:
+                src = fh.read()
             if "<!doctype html>" in src.lower() or "<html" in src.lower():
                 self.assertTrue("DISCLAIMER_HTML" in src or "DISCLAIMER_LEAD" in src, name)
 

@@ -178,6 +178,18 @@ def person_dosages(person, chroms, name):
     return out
 
 
+def ref_dosages(gts, keep, count_alt):
+    """Archaic-allele dosages of the reference samples `keep` from 1000G GTs ("0|1"), or None if any is missing."""
+    out = []
+    for i in keep:
+        g = gts[i].replace("|", "").replace("/", "")
+        if len(g) != 2 or not set(g) <= {"0", "1"}:
+            return None
+        n = g.count("1")
+        out.append(n if count_alt else 2 - n)
+    return out
+
+
 def fetch_reference(chroms, name):
     os.makedirs(REF_DIR, exist_ok=True)
 
@@ -301,14 +313,8 @@ def main():
             if r is None or any(m is None for m, _ in hits.values()):
                 continue
             pd = {p: (m[2] if a else 2 - m[2]) for p, (m, a) in hits.items()}
-            rd = []
-            for i in keep:
-                g = r[2][i].replace("|", "").replace("/", "")
-                if len(g) != 2 or not set(g) <= {"0", "1"}:  # missing reference genotype: skip the tag
-                    break
-                n = g.count("1")
-                rd.append(n if r_alt else 2 - n)
-            else:
+            rd = ref_dosages(r[2], keep, r_alt)
+            if rd is not None:  # None: a reference genotype is missing, so the tag is skipped for everyone
                 rows.append((pd, rd))
         if not rows:
             continue

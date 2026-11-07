@@ -349,14 +349,14 @@ def family_pgs_table():
     gp = bool(grandpa_cells())
     head = "".join(f"<th>{esc(col(p))}</th>" for p in people) + (GP_TH if gp else "")
     listed = {t for _, ts in PGS_GROUPS for t in ts}
-    groups = [(label, ts + sorted(t for t in traits if t not in listed) if label == "Other conditions" else ts)
-              for label, ts in PGS_GROUPS]
+    groups = [(group, ts + sorted(t for t in traits if t not in listed) if group == "Other conditions" else ts)
+              for group, ts in PGS_GROUPS]
     ncol = 1 + len(people) + gp
     rows = []
-    for label, ts in groups:
+    for group, ts in groups:
         present = [t for t in ts if t in traits]
         if present:
-            rows.append(f'<tr class="grp"><th colspan="{ncol}">{esc(label)}</th></tr>')
+            rows.append(f'<tr class="grp"><th colspan="{ncol}">{esc(group)}</th></tr>')
         for trait in present:
             vals = traits[trait]
             cells = []
@@ -1108,8 +1108,8 @@ def neanderthal_section():
                if both else
                '1000 Genomes Spaniards (IBS). The segments were discovered in those same Spaniards, so they score '
                'slightly high and a result against them may read a little low. ')
-            + f'All Europeans carry roughly 2% Neanderthal DNA; this measures who has a bit more or less than the '
-            f'comparison group, not a total %. Exact ranks are too uncertain to show.</p></section>')
+            + 'All Europeans carry roughly 2% Neanderthal DNA; this measures who has a bit more or less than the '
+            'comparison group, not a total %. Exact ranks are too uncertain to show.</p></section>')
 
 
 def pigmentation_section():
@@ -1207,8 +1207,8 @@ def grandpa_section():
         f"<tr><th scope=row>{esc(r['gene'])}</th><td class=nw><b>{esc(r['grandpa_transmitted_allele'])}</b></td>"
         f"<td>{esc(r['meaning'])}{' <span class=dim>(imputed)</span>' if r.get('source', '').startswith('imputed') else ''}"
         f"</td></tr>" for r in rows)
-    return (f'<section class="card"><h2>👴 Virtual grandpa (mom\'s father)</h2>'
-            f'<p class="dim">Reconstructed from mom + grandma'
+    return ('<section class="card"><h2>👴 Virtual grandpa (mom\'s father)</h2>'
+            '<p class="dim">Reconstructed from mom + grandma'
             + (f', with ambiguous sites resolved by {esc(" or ".join(how), quote=False)}' if how else "")
             + f'; rows marked "imputed" come from imputed data. His transmitted copy is '
             f'called at {auto["known_pct"]:.1f}% of autosomal SNPs'
@@ -1329,7 +1329,7 @@ def lineage_stats(summary, viewer):
     """The mtDNA and Y stat rows, computed from the haplogroup tables and summary.json."""
     mt = {r["SampleID"]: r["Haplogroup"] for r in read_tsv("mt_haplogroups.tsv")}
     ys = y_calls()
-    mom, dad, gma = person("mother"), person("father"), person("maternal_grandmother")
+    mom, dad = person("mother"), person("father")
     out = []
     # mtDNA: the viewer's maternal line (siblings, mom, grandma) plus anyone else who happens to share it.
     hg = mt.get(viewer)

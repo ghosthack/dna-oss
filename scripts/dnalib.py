@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import zipfile
 
 CODE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +21,7 @@ RESULTS = os.path.join(DATA, "results")
 TOOLS = os.path.abspath(os.path.expanduser(os.environ.get("DNA_TOOLS", os.path.join(CODE, "tools"))))
 BCFTOOLS = os.environ.get("BCFTOOLS") or shutil.which("bcftools") or "/opt/homebrew/bin/bcftools"
 
+COMP_TABLE = str.maketrans("ACGT", "TGCA")
 CHROMS = [str(c) for c in range(1, 23)] + ["X", "Y", "MT"]
 ANCESTRY_CHROM = {"23": "X", "24": "Y", "26": "MT"}  # 25 (PAR) is dropped
 
@@ -83,7 +85,16 @@ def merge(primary, secondary):
     discordant = [rs for rs in shared if _norm(primary[rs]) != _norm(secondary[rs])]
     for rs in discordant:
         del merged[rs]
-    return merged, {"shared": len(shared), "discordant": len(discordant),
+    # Strand check. A shared SNP reported on opposite strands is discordant (and dropped) unless it is an A/T or C/G
+    # heterozygote, so a strand mix-up shows as discordance far above the ~0.1-0.5% chip error rate. SNPs on only
+    # one chip can't be checked, so warn loudly.
+    flipped = sum(1 for rs in discordant
+                  if "".join(sorted(_norm(primary[rs]).translate(COMP_TABLE))) == _norm(secondary[rs]))
+    if shared and (len(discordant) / len(shared) > 0.02 or flipped / len(shared) > 0.005):
+        print(f"WARNING: the two chips disagree at {len(discordant)} of {len(shared)} shared SNPs ({flipped} are exact "
+              "strand complements). One file may not be on the plus strand or on GRCh37; check the downloads "
+              "before trusting SNPs that only one chip has.", file=sys.stderr)
+    return merged, {"shared": len(shared), "discordant": len(discordant), "strand_complement": flipped,
                     "only_primary": len(primary) - len(shared),
                     "only_secondary": len(secondary) - len(shared),
                     "total": len(merged)}
@@ -298,10 +309,13 @@ def text(key, default=""):
 
 
 # Shown at the top of every generated page. Inline styles so it works with each page's own CSS, light or dark.
+# The notice every generated page carries. doctor.py words the rest for clinicians but starts with the same lead,
+# and tests/test_scripts.py checks every page generator uses one of these.
+DISCLAIMER_LEAD = "For learning and research only. Not medical advice."
 DISCLAIMER_HTML = (
     '<div role="note" style="border:1.5px solid #c9a227;background:rgba(201,162,39,.12);border-radius:6px;'
     'padding:8px 12px;margin:0 0 16px;font-size:14px;line-height:1.45">'
-    "<b>For learning and research only. Not medical advice.</b> These results come from consumer genotyping chips "
+    f"<b>{DISCLAIMER_LEAD}</b> These results come from consumer genotyping chips "
     "analysed with open-source research code. They are not a diagnosis and have not been clinically validated. "
     "Anything health-related, including medication notes, needs review by a clinician (a doctor or genetic "
     "counselor) and confirmation with a clinical test before any decision about care.</div>")

@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dnalib
-from dnalib import RAW, RESULTS, children, person as role_person, people, role, siblings, text
+from dnalib import DISCLAIMER_LEAD, RAW, RESULTS, children, person as role_person, people, role, siblings, text
 from pgx import DRUGS, note
 
 esc = html.escape
@@ -673,7 +673,7 @@ def pgs_section(pgs, amd_row, personal=(), who=None):
             continue
         if "glomerular" in t:
             if pct <= 20:
-                items.append((f"Kidney function (eGFR, creatinine-based) — low genetic eGFR", pid, pct, r,
+                items.append(("Kidney function (eGFR, creatinine-based) — low genetic eGFR", pid, pct, r,
                               "Higher = better filtration; this score is low. Routine creatinine/eGFR and urine ACR."))
             continue
         if pct >= 80:
@@ -1297,7 +1297,7 @@ def person_page(person, date, pgx, apoe, well, pgs, n_people=2):
 
     body = f"""<h1>{esc(name)} — DNA summary for clinicians</h1>
 <p class="meta">{meta}</p>
-<div class="disclaimer"><b>For learning and research only — not medical advice and not a clinical test.</b> Results come from a
+<div class="disclaimer"><b>{DISCLAIMER_LEAD} Not a clinical test.</b> Results come from a
 direct-to-consumer SNP array analysed locally{' by family members' if n_people > 1 else ''} with open-source research code that has
 not been clinically validated. A clinician must review these findings and confirm any actionable one with a
 CLIA-certified/clinical test before changing care.</div>
@@ -1344,7 +1344,7 @@ def main():
                      f'finding(s), {pgs_txt}</li>')
     body = (f"<h1>DNA summaries for clinicians</h1><p class=meta>One printable page per person"
             f"{' · generated ' + esc(date) if date else ''}.</p>"
-            f'<div class="disclaimer"><b>For learning and research only — not medical advice and not a clinical test.</b> '
+            f'<div class="disclaimer"><b>{DISCLAIMER_LEAD} Not a clinical test.</b> '
             f"A clinician must review these findings and confirm actionable ones with a clinical test before changing care.</div>"
             f"<ul>{''.join(links)}</ul><p class=small>Full reports: <a href=\"../index.html\">results/index.html</a></p>")
     with open(os.path.join(OUT, "index.html"), "w") as fh:

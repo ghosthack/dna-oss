@@ -1,0 +1,3 @@
+# SHA-256 pins for reference files whose download URL carries no version (read by fetch_refs.sh).
+# Format: "<sha256>  <key>". A file without a pin is accepted and its checksum printed ("unpinned: ...").
+# If an upstream file is deliberately updated, replace its line here.

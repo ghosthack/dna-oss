@@ -246,6 +246,18 @@ def log(*a):
 
 
 # ---------------------------------------------------------------- data
+# snps.tsv a1/a2 are already on the family chips' plus strand (ancestry_ho_fetch.py flips them when writing), so
+# chip genotypes and grandpa's alleles are compared to them as they are, never complemented again.
+def chip_dosage(gt, a1, a2):
+    """Copies of a1 in a chip genotype, or 3 (missing) if it isn't an a1/a2 diploid call."""
+    return gt.count(a1) if len(gt) == 2 and set(gt) <= {a1, a2} else 3
+
+
+def haplotype_code(allele, a1, a2):
+    """A single transmitted allele as 1 (= a1), 0 (= a2) or 3 (unknown)."""
+    return 1 if allele == a1 else 0 if allele == a2 else 3
+
+
 def load():
     c = F.load_cache()
     snps = c["snps"]                       # rsid chrom pos a1 a2 flipped in_family
@@ -266,13 +278,11 @@ def load():
             if not data:
                 continue
             g = np.full(L, 3, dtype=np.uint8)
-            for i, (rs, ch, pos, a1, a2, fl, _inf) in enumerate(snps):
+            for i, (rs, ch, pos, a1, a2, _fl, _inf) in enumerate(snps):
                 v = data.get(rs)
                 if not v or str(v[0]) != ch or str(v[1]) != pos:
                     continue
-                gt = v[2]  # snps.tsv a1/a2 are already on the chip's plus strand (ancestry_ho_fetch.py)
-                if len(gt) == 2 and set(gt) <= {a1, a2}:
-                    g[i] = gt.count(a1)
+                g[i] = chip_dosage(v[2], a1, a2)
             if (g != 3).sum() > 10000:
                 fam[d] = g
                 log(f"added {d} from raw data ({int((g != 3).sum())} SNPs)")
@@ -673,14 +683,10 @@ def load_grandpa(snps):
             al = r.get("grandpa_transmitted") or ""
             if i is None or len(al) != 1 or r.get("ambiguous_hethet", "0") not in ("0", ""):
                 continue
-            rs, ch, ps, a1, a2, fl = snps[i][:6]
+            rs, ch, ps, a1, a2 = snps[i][:5]
             if r["chromosome"] != ch or r["position_grch37"] != ps:
                 continue
-            # grandpa's allele is on the chip strand, like snps.tsv a1/a2 (already flipped by ancestry_ho_fetch.py)
-            if al == a1:
-                h[i] = 1
-            elif al == a2:
-                h[i] = 0
+            h[i] = haplotype_code(al, a1, a2)
     return h
 
 

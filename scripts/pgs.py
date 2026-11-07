@@ -240,6 +240,10 @@ def score_all(scores, people):
             mean = sum(vals) / len(vals)
             sd = (sum((v - mean) ** 2 for v in vals) / (len(vals) - 1)) ** 0.5
             dist[code] = (vals, mean, sd)
+        if not used or any(sd == 0 for _, _, sd in dist.values()):
+            # No usable variants, or the reference samples all score the same: nothing to rank against.
+            print(f"  {pid}: not scored ({used} usable variants, no spread in the 1000 Genomes reference)")
+            continue
         for p, total in totals.items():
             groups = {code: {"n": len(vals), "percentile": round(bisect.bisect_left(vals, total) / len(vals) * 100, 1),
                              "z": round((total - mean) / sd, 2)}

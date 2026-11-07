@@ -175,6 +175,21 @@ def fetch_reference():
         sys.exit(f"{failed} batches failed; rerun to retry (finished batches are cached)")
 
 
+def weighted_jackknife_se(reps, sizes, full):
+    """Delete-one-group jackknife SE with unequal group sizes (Busing et al. 1999).
+
+    reps[j]: the estimate with group j left out; sizes[j]: SNPs in group j; full: the all-data estimate.
+    With equal sizes this is the classic sqrt((g-1)/g * sum((rep - mean)^2)). None with fewer than 2 groups."""
+    g = len(reps)
+    if g < 2:
+        return None
+    n = sum(sizes)
+    h = [n / m for m in sizes]
+    est = g * full - sum((1 - m / n) * r for m, r in zip(sizes, reps))
+    var = sum((hj * full - (hj - 1) * r - est) ** 2 / (hj - 1) for hj, r in zip(h, reps)) / g
+    return math.sqrt(var)
+
+
 def load_samples():
     kg_sample_files(PGS_REF)  # shared with pgs.py; fetched here when pgs.py hasn't run (e.g. --no-pgs)
     samples = open(os.path.join(PGS_REF, "samples.txt")).read().split()
@@ -560,16 +575,10 @@ def main():
                 keep = [g if snps[j][0] != c else None for j, g in enumerate(gvec)]
                 ests.append(admix(geno_rows(keep, src_f), K, start=pi)[0])
                 sizes.append(m)
-            total = sum(sizes)
 
             def se(vals, full):
-                if len(vals) < 2:
-                    return None
-                h = [total / m for m in sizes]
-                est = len(vals) * full - sum((1 - m / total) * v for m, v in zip(sizes, vals))
-                var = sum((hj * full - (hj - 1) * v - est) ** 2 / (hj - 1)
-                          for hj, v in zip(h, vals)) / len(vals)
-                return round(math.sqrt(var), 4)
+                s = weighted_jackknife_se(vals, sizes, full)
+                return None if s is None else round(s, 4)
             res["se"] = {nm: se([e[k] for e in ests], pi[k]) for k, nm in enumerate(names)}
             full_broad, full_eu = groups(pi, BROAD), groups(pi, EURO_REGIONS)
             res["broad_se"] = {b: se([groups(e, BROAD)[b] for e in ests], full_broad[b]) for b in BROAD}

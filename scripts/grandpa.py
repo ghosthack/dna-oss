@@ -192,7 +192,7 @@ def validate(rows, kids, mom, gma):
     # 2. Independent check: 23andMe one-parent phasing vs children/painting at ambiguous het/het sites
     for label, sel in (("autosomes", auto), ("X_nonPAR", [r for r in rows if r[0] == "X" and not in_par(r[1])])):
         both = [r for r in sel if r[9] and r[7] and r[8] and len({x.split(":")[1] for x in r[8].split(",")}) == 1]
-        agree = sum(1 for r in both if r[7] == r[8].split(":")[1])
+        agree = sum(1 for r in both if r[7] == r[8].split(",")[0].split(":")[1])  # children all agree (above)
         v[f"phased_vs_children_hethet_{label}"] = {
             "sites": len(both), "agree": agree, "agree_pct": pct(agree, len(both)),
             "note": "independent: 23andMe statistical+grandma phasing vs Mendelian inheritance through child + painting "
@@ -318,8 +318,9 @@ def apoe(kids, mom_chip):
                 mat = ISOFORM.get((m1, m2))
         res[name] = {"painting_at_APOE": {0: "grandma", 1: "grandpa", None: "unknown"}[st],
                      "child_maternal_isoform": mat}
-        if mat and st is not None and out.get("grandpa_transmitted"):
-            isos = out["mom_imputed"].split("/")
+        isos = (out.get("mom_imputed") or "").split("/")
+        # The two APOE SNPs are resolved separately, so grandpa's combination may not be one of mom's isoforms.
+        if mat and st is not None and out.get("grandpa_transmitted") in isos:
             isos.remove(out["grandpa_transmitted"])
             res[name]["consistent"] = mat == (out["grandpa_transmitted"] if st == 1 else isos[0])
     out["children_check"] = res

@@ -64,13 +64,20 @@ def parse_sleep_paralysis(path):
             "by_age": f"{pct.group(2)}s" if pct else None}
 
 
+def capture_date(path):
+    """YYYY-MM-DD from a report file name, or "" when the name has no date."""
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", os.path.basename(path))
+    return m.group(1) if m else ""
+
+
 def main():
     out = {}
     for d in sorted(glob.glob(os.path.join(RAW, "*", "23andme_reports"))):
         person = os.path.basename(os.path.dirname(d))
         rec, sources = {"reports": {}}, []
         # Oldest first, so newer captures overwrite: page archive (.md), then printed summaries (.pdf), by date.
-        files = [(re.search(r"(\d{4}-\d{2}-\d{2})", os.path.basename(f)).group(1), f)
+        # Files without a date in the name sort first (treated as the oldest capture).
+        files = [(capture_date(f), f)
                  for f in glob.glob(os.path.join(d, "23andMe_all_health_traits_reports_*.md"))
                  + glob.glob(os.path.join(d, "23andMe_reports_summary_*.pdf"))]
         for _, f in sorted(files):

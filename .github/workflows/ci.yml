@@ -1,0 +1,22 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile every script
+        run: python -m compileall -q scripts tests
+      - name: Shell syntax
+        run: bash -n run_all.sh fetch_refs.sh && sh -n scripts/install_hooks.sh
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Leak check (generic rules; no family data in CI)
+        run: python -I scripts/leak_check.py --repo .

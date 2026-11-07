@@ -26,21 +26,21 @@ import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dnalib  # noqa: E402
-from dnalib import BCFTOOLS, RESULTS, WORK  # noqa: E402
+from dnalib import BCFTOOLS, KG_PANEL, RESULTS, WORK, kg_sample_files  # noqa: E402
 OUT = os.path.join(WORK, "ancestry")
 REF = os.path.join(OUT, "ref")
 WIN = os.path.join(REF, "win")
 PGS_REF = os.path.join(WORK, "pgs", "ref")
 
-KG = ("http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/"
-      "working/20220422_3202_phased_SNV_INDEL_SV/1kGP_high_coverage_Illumina.{chrom}.filtered."
-      "SNV_INDEL_SV_phased_panel.vcf.gz")
+KG = KG_PANEL
+GT_TOKEN = re.compile(r"([0-9.])[|/]([0-9.])|\.")  # one diploid GT ("0|1") or a bare missing "."
 CHROMS = [f"chr{c}" for c in range(1, 23)]
 GRCH38_LEN = [248956422, 242193529, 198295559, 190214555, 181538259, 170805979, 159345973,
               145138636, 138394717, 133797422, 135086622, 133275309, 114364328, 107043718,
@@ -142,8 +142,8 @@ def fetch_batch(name, wins):
             with gzip.open(tmp, "wt", compresslevel=6) as fh:
                 for line in query.stdout.decode().splitlines():
                     c, pos, ref, alt, gts = line.split("\t")
-                    # "0|10|0..." -> two allele chars per sample
-                    fh.write(f"{c}\t{pos}\t{ref}\t{alt}\t{gts.replace('|', '').replace('/', '')}\n")
+                    # "0|10|0..." -> two allele chars per sample; a bare "." (missing) becomes ".." to keep alignment
+                    fh.write(f"{c}\t{pos}\t{ref}\t{alt}\t{GT_TOKEN.sub(lambda m: m.group(1) + m.group(2) if m.group(1) else '..', gts)}\n")
                     n += 1
             os.replace(tmp, path)
             os.remove(reg)
@@ -176,6 +176,7 @@ def fetch_reference():
 
 
 def load_samples():
+    kg_sample_files(PGS_REF)  # shared with pgs.py; fetched here when pgs.py hasn't run (e.g. --no-pgs)
     samples = open(os.path.join(PGS_REF, "samples.txt")).read().split()
     pop, founder = {}, set()
     with open(os.path.join(PGS_REF, "ped.txt")) as fh:
@@ -549,18 +550,30 @@ def main():
                "european_regions": {b: round(x, 4) for b, x in groups(pi, EURO_REGIONS).items()},
                "n_snps": len(rows)}
         if jackknife:
-            ests = []
+            # Weighted delete-one-chromosome jackknife (Busing et al. 1999): chromosomes differ several-fold in
+            # SNP count, so each replicate is weighted by the SNPs it removes (as in ancestry_ho.py).
+            ests, sizes = [], []
             for c in CHROMS:
+                m = sum(1 for j, g in enumerate(gvec) if g is not None and snps[j][0] == c)
+                if not m:
+                    continue
                 keep = [g if snps[j][0] != c else None for j, g in enumerate(gvec)]
                 ests.append(admix(geno_rows(keep, src_f), K, start=pi)[0])
-            n = len(ests)
+                sizes.append(m)
+            total = sum(sizes)
 
-            def se(vals):
-                m = sum(vals) / n
-                return round(math.sqrt((n - 1) / n * sum((x - m) ** 2 for x in vals)), 4)
-            res["se"] = {nm: se([e[k] for e in ests]) for k, nm in enumerate(names)}
-            res["broad_se"] = {b: se([groups(e, BROAD)[b] for e in ests]) for b in BROAD}
-            res["european_regions_se"] = {b: se([groups(e, EURO_REGIONS)[b] for e in ests])
+            def se(vals, full):
+                if len(vals) < 2:
+                    return None
+                h = [total / m for m in sizes]
+                est = len(vals) * full - sum((1 - m / total) * v for m, v in zip(sizes, vals))
+                var = sum((hj * full - (hj - 1) * v - est) ** 2 / (hj - 1)
+                          for hj, v in zip(h, vals)) / len(vals)
+                return round(math.sqrt(var), 4)
+            res["se"] = {nm: se([e[k] for e in ests], pi[k]) for k, nm in enumerate(names)}
+            full_broad, full_eu = groups(pi, BROAD), groups(pi, EURO_REGIONS)
+            res["broad_se"] = {b: se([groups(e, BROAD)[b] for e in ests], full_broad[b]) for b in BROAD}
+            res["european_regions_se"] = {b: se([groups(e, EURO_REGIONS)[b] for e in ests], full_eu[b])
                                           for b in EURO_REGIONS}
         bp, top = best_pop(gvec)
         res["best_population"] = bp

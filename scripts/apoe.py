@@ -38,7 +38,10 @@ def imputed_haplotypes(person):
         rec = [l.split("\t") for l in out.splitlines() if l.split("\t")[1:3] == [ref, alt]]
         if not rec:
             return None
-        hds = [float(x) for x in rec[0][3].strip().split(",")]
+        try:
+            hds = [float(x) for x in rec[0][3].strip().split(",")]
+        except ValueError:  # "." = no dosage at this site
+            return None
         if any(0.1 < h < 0.9 for h in hds):  # uncertain imputation
             return None
         alleles[rs] = [alt if h >= 0.5 else ref for h in hds]

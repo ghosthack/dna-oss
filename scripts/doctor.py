@@ -235,8 +235,8 @@ def pgx_action(gene, r, by_gene):
             return (f"Higher rosuvastatin exposure. CPIC (optional): rosuvastatin {rosu_start(slco, ph)} starting "
                     f"dose or an alternative statin{why}. Q141K is an established risk allele for raised urate/gout.")
     if gene == "TPMT" and ph.startswith("Intermediate"):
-        text = ("TPMT intermediate: CPIC — start azathioprine/mercaptopurine/thioguanine at 30–80% of normal dose "
-                "(thioguanine: if the standard start is ≥40 mg/m²/day) and adjust to myelosuppression.")
+        text = ("TPMT intermediate: CPIC — start azathioprine/mercaptopurine at 30–80% and thioguanine at 50–80% of "
+                "normal dose (thioguanine: if the standard start is ≥40 mg/m²/day) and adjust to myelosuppression.")
         n = other("NUDT15")
         if n.startswith("Intermediate"):
             text = ("TPMT + NUDT15 intermediate (compound intermediate): CPIC — start azathioprine/mercaptopurine/"
@@ -254,8 +254,8 @@ def pgx_action(gene, r, by_gene):
                "array calls of rare variants are often false positives")
         return (f"Rare variant in Europeans (NUDT15*3 ~0.2–0.3%); {how} — confirm with clinical TPMT/NUDT15 "
                 "genotyping. If confirmed, CPIC: start "
-                "azathioprine/mercaptopurine/thioguanine at 30–80% of normal dose (thioguanine: if the standard start "
-                "is ≥40 mg/m²/day)" + ("; 20–50% with TPMT also intermediate (see TPMT row)"
+                "azathioprine/mercaptopurine at 30–80% and thioguanine at 50–80% of normal dose (thioguanine: if the "
+                "standard start is ≥40 mg/m²/day)" + ("; 20–50% with TPMT also intermediate (see TPMT row)"
                                        if other("TPMT").startswith("Intermediate") else "")
                 + ", adjust by myelosuppression.")
     if gene == "CYP3A5" and (ph.startswith("Normal") or ph.startswith("Intermediate")):
@@ -345,7 +345,7 @@ def cyp2d6_line(r):
 
 def pgx_section(rows):
     by_gene = {r["gene"]: r for r in rows}
-    flagged, routine, limited, extra = [], [], [], []
+    flagged, routine, limited, extra, untested = [], [], [], [], []
     warfarin_flag = "VKORC1" in by_gene and bool(note("VKORC1", by_gene["VKORC1"]["phenotype"]))
     for gene, r in by_gene.items():
         dip, ph = r["diplotype"], r["phenotype"]
@@ -363,6 +363,9 @@ def pgx_section(rows):
                          else show_pheno(ph))
                 flagged.append((gene, dip, shown, action + " Deletions/duplications not detectable."))
             continue
+        if "Not determinable" in ph:  # none of the gene's SNPs were genotyped: say so, never "typical"
+            untested.append(gene)
+            continue
         action = pgx_action(gene, r, by_gene)
         if gene.startswith("HLA"):
             if action:  # the phenotype's "— typing needed…" aside is covered by the action column
@@ -373,7 +376,12 @@ def pgx_section(rows):
         if gene == "CYP4F2" and not action and "higher" in ph and warfarin_flag:
             continue  # folded into the warfarin row below
         if not action:
-            (limited if gene in LIMITED else routine).append(gene if gene in LIMITED else routine_label(gene, r))
+            if gene in LIMITED:
+                limited.append(gene)
+            else:
+                caveat = ph.rsplit(" (", 1)[1].rstrip(")") if ph.endswith("not tested)") else ""
+                routine.append(f"{gene} {dip} ({short_pheno(ph).lower()}; {caveat})" if caveat
+                               else routine_label(gene, r))
             continue
         if gene == "VKORC1" and "CYP4F2" in by_gene:
             c9, f2 = by_gene.get("CYP2C9"), by_gene["CYP4F2"]
@@ -403,6 +411,9 @@ def pgx_section(rows):
                          "testing before thiopurines.")
         lines.append("<p class=small><b>Limited panels (only a few variants tested):</b> "
                      + " ".join(esc(p) for p in parts) + "</p>")
+    if untested:
+        lines.append(f"<p class=small><b>Not tested on this chip</b> (no result, not a normal result): "
+                     f"{esc(', '.join(untested))}.</p>")
     lines += [f"<p class=small>{x}</p>" for x in extra]
     return table + "".join(lines), flagged, by_gene, limited
 
@@ -442,23 +453,29 @@ def conditions_section(well, apoe_row, person=None):
         return res
 
     def clot(r):
-        if not r["result"].startswith("No "):
-            found = r["result"].split(":")[0]
+        res = r["result"]
+        if res.startswith("Not determinable"):
+            return "Not determinable (Factor V Leiden and prothrombin G20210A both no-calls) — clinical test if indicated."
+        calls = split_genotypes(r["genotypes"])
+        untested = [rs for rs, g, _ in calls if not g.strip("-")]
+        name = {"rs6025": "Factor V Leiden", "rs1799963": "Prothrombin G20210A"}
+        gap = (" " + " and ".join(name.get(rs, rs) for rs in untested) + " not tested (chip no-call).") if untested else ""
+        if not res.startswith("No "):
+            found = res.split(":")[0]
             when = {"M": "surgery, immobilisation and long-haul travel",
                     "F": ("estrogen-containing contraception/HRT, pregnancy and the postpartum period, surgery, "
                           "immobilisation and long-haul travel")}.get(
                 sex(person), "surgery, immobilisation, long-haul travel and, in women, estrogen-containing "
                              "contraception/HRT, pregnancy and the postpartum period")
-            return f"{found}: raised venous thromboembolism risk — relevant to {when}."
-        snps = {rs: imp for rs, _, imp in split_genotypes(r["genotypes"])}
-        imputed = [rs for rs, imp in snps.items() if imp]
-        if not imputed:
+            return f"{found}: raised venous thromboembolism risk — relevant to {when}.{gap}"
+        tested = [(rs, imp) for rs, g, imp in calls if rs not in untested]
+        if not any(imp for _, imp in tested) and not untested:
             text = "Factor V Leiden and prothrombin G20210A not detected (direct chip calls)."
         else:
             text = " ".join(
-                f"{'Factor V Leiden' if rs == 'rs6025' else 'Prothrombin G20210A' if rs == 'rs1799963' else rs} "
+                f"{name.get(rs, rs)} "
                 + ("not detected (imputed, chip no-call — not a tested negative)." if imp else
-                   "not detected (direct chip call).") for rs, imp in snps.items())
+                   "not detected (direct chip call).") for rs, imp in tested) + gap
             text += " Confirm by clinical test if thrombophilia evaluation is indicated (e.g. personal/family VTE history)."
         return text + " Protein C, protein S and antithrombin deficiency not assessed."
 
@@ -576,6 +593,9 @@ def apoe_line(apoe_row):
     if not apoe_row:
         return ""
     g, src = apoe_row["apoe"], apoe_row["source"]
+    if not g:  # apoe.py writes an empty call when neither the chip nor imputation resolves it
+        return ("<p><b>APOE (risk modifier, not an inherited condition):</b> not determined "
+                f"({esc(src or 'no call')}). Clinical testing is needed for an APOE result.</p>")
     how = "imputed, chip no-call" if "imputed" in src else "direct consumer-chip call"
     n4 = g.count("ε4")
     if n4:
@@ -791,7 +811,11 @@ def discussion_points(flagged, by_gene, cond_rows, pgs_items, nut_flags, limited
     if "CYP2C19" in genes:
         ph = genes["CYP2C19"]
         dip = by_gene["CYP2C19"]["diplotype"]
-        if "Intermediate" in ph or "Poor" in ph:
+        if "Poor" in ph:
+            pts.append("Clopidogrel: little or no activation (CYP2C19 poor metabolizer) — CPIC: avoid clopidogrel if "
+                       "possible (for ACS/PCI use prasugrel or ticagrelor if no contraindication; prasugrel "
+                       "contraindicated after stroke/TIA; for neurovascular indications consider ticagrelor).")
+        elif "Intermediate" in ph:
             pts.append("Clopidogrel: reduced activation (CYP2C19) — for ACS/PCI avoid standard-dose clopidogrel if "
                        "possible (prasugrel or ticagrelor if no contraindication; prasugrel contraindicated after "
                        "stroke/TIA); for neurovascular indications consider ticagrelor.")
@@ -814,8 +838,8 @@ def discussion_points(flagged, by_gene, cond_rows, pgs_items, nut_flags, limited
                        "thioguanine at 20–50% of the standard starting dose; confirm with clinical TPMT/NUDT15 "
                        "testing first.")
         else:
-            pts.append(f"Thiopurines: CPIC — start azathioprine/mercaptopurine/thioguanine at 30–80% of normal dose "
-                       f"(thioguanine: if the standard start is ≥40 mg/m²/day) ({which[0]} intermediate); confirm "
+            pts.append(f"Thiopurines: CPIC — start azathioprine/mercaptopurine at 30–80% and thioguanine at 50–80% "
+                       f"of normal dose (thioguanine: if the standard start is ≥40 mg/m²/day) ({which[0]} intermediate); confirm "
                        f"with clinical TPMT/NUDT15 testing first.")
     if "G6PD" in genes:
         status = genes["G6PD"].lower().replace(" (", ", ").rstrip(")")
@@ -964,7 +988,7 @@ def skin_section(person):
     if not pig and not skin:
         return "", None
     strong = int(round(float(pig["mc1r_R"]))) if pig else 0
-    weak = int(round(float(pig["mc1r_r"]))) if pig else 0
+    weak = int(round(float(pig.get("mc1r_r") or 0))) if pig else 0
     geno = (f"MC1R: {strong} strong red-hair/sun-sensitivity (R) variant{'s' if strong != 1 else ''}, "
             f"{weak} weaker (r) variant{'s' if weak != 1 else ''} (R variants include R151C, R160W, D294H)"
             ) if pig else "MC1R: not assessed"
@@ -1158,11 +1182,13 @@ def family_history_section(person, pgs):
     polyps_self = "colon_polyps" in hist.get(person, {})
     for key, relation in relatives(person):
         for item, details in hist.get(key, {}).items():
+            # family_notes.json is hand-written: accept true/null/numbers as well as text
+            details = details if isinstance(details, str) else "" if details in (None, True, False) else str(details)
             rows.append((relation, history_label(item), details))
             if item == "colon_polyps" and key != person:
                 fdr_polyps.append(relation.lower())
             if item in HBOC_CANCERS and relation in cancers:
-                cancers[relation].append((item, details[0].lower() + details[1:]))
+                cancers[relation].append((item, details[:1].lower() + details[1:]))
     if not rows:
         return "", []
     body = "".join(f"<tr><td>{esc(a)}</td><td>{esc(b)}</td><td>{esc(c)}</td></tr>" for a, b, c in rows)

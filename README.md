@@ -7,7 +7,8 @@ downloads into a set of static HTML pages: one "Family DNA" page per child, a
 
 **Your genetic data never leaves your machine.** The scripts only download public
 reference data: 1000 Genomes slices, the AADR Human Origins panel, PGS Catalog
-scoring files, Ensembl lookups by rsID, and Haplogrep/yhaplo trees.
+scoring files and Haplogrep/yhaplo trees. The demo generator (`make_demo.py`) and the developer helper
+`scripts/ensembl.py` also query Ensembl by rsID; no personal data is sent.
 
 > **For learning and research only. Not medical advice.** See [DISCLAIMER.md](DISCLAIMER.md).
 > Consumer chips miss most disease variants and have false positives. A clinician must review
@@ -42,7 +43,7 @@ Contributions that generalize these are welcome.
 
 ```bash
 ./fetch_refs.sh                       # third-party tools + reference files into tools/ and .venv/
-python3 -I scripts/make_demo.py       # writes a synthetic 5-person family to demo-data/
+python3 -I scripts/make_demo.py       # writes a synthetic 5-person family to demo-data/ (needs network once: Ensembl)
 DNA_DATA=$PWD/demo-data ./run_all.sh --offline
 open demo-data/results/index.html
 ```
@@ -118,6 +119,14 @@ macOS or Linux with `python3` (3.12+), `bcftools`, `java` (11+), `curl`, `git` a
 - `run_all.sh`: runs every step in order
 - `fetch_refs.sh`: downloads third-party tools and references
 - `docs/`: configuration reference
+
+## Development
+
+```bash
+python3 -m unittest discover -s tests   # unit tests (standard library only, no data or network)
+```
+
+CI runs these, a syntax check of every script and the generic leak check on each push.
 
 ## License
 

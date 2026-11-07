@@ -142,14 +142,81 @@ def imputed_genotypes(person, rsids):
         bcf = glob.glob(os.path.join(WORK, "imputed", person, "*", f"{chrom}.bcf"))
         if not bcf:
             continue
-        res = subprocess.run([BCFTOOLS, "query", "-r", f"{chrom}:{pos}",
-                              "-f", "%REF\t%ALT\t[%HDS]\n", bcf[0]], capture_output=True, text=True).stdout
-        for line in res.splitlines():
+        proc = subprocess.run([BCFTOOLS, "query", "-r", f"{chrom}:{pos}",
+                               "-f", "%REF\t%ALT\t[%HDS]\n", bcf[0]], capture_output=True, text=True)
+        if proc.returncode:
+            raise RuntimeError(f"bcftools query failed on {bcf[0]}: {proc.stderr.strip()}")
+        for line in proc.stdout.splitlines():
             r, a, hds = line.split("\t")
-            h = [float(x) for x in hds.split(",")]
+            try:
+                h = [float(x) for x in hds.split(",")]
+            except ValueError:  # "." = no dosage at this site
+                continue
             if (r, a) == (ref, alt) and all(x < 0.1 or x > 0.9 for x in h):
                 out[rs] = "".join(sorted(alt if x > 0.5 else ref for x in h))
     return out
+
+
+# ---------------------------------------------------------------- 1000 Genomes reference panel (public downloads)
+KG_BASE = "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/"
+KG_PANEL = (KG_BASE + "working/20220422_3202_phased_SNV_INDEL_SV/1kGP_high_coverage_Illumina.{chrom}.filtered."
+            "SNV_INDEL_SV_phased_panel.vcf.gz")
+KG_PED = KG_BASE + "20130606_g1k_3202_samples_ped_population.txt"
+
+
+def download(url, dest, timeout=60, check=None):
+    """Fetch url to dest via a temporary file, so an interrupted or failed download never leaves a partial dest.
+    `check(path)` may raise to reject the downloaded file."""
+    import urllib.request
+    tmp = f"{dest}.part"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r, open(tmp, "wb") as fh:
+            shutil.copyfileobj(r, fh)
+        if check:
+            check(tmp)
+        os.replace(tmp, dest)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def append_gzip(path, text):
+    """Append text to a gzip cache as a new member, atomically: a run killed mid-write leaves the old file intact."""
+    import gzip
+    tmp = f"{path}.tmp"
+    if os.path.exists(path):
+        shutil.copyfile(path, tmp)
+    with gzip.open(tmp, "at") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+
+
+def write_atomic(path, text):
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+
+
+def kg_sample_files(ref_dir):
+    """Make sure ref_dir has the 1000 Genomes sample order (samples.txt) and population table (ped.txt)."""
+    os.makedirs(ref_dir, exist_ok=True)
+    samples_path = os.path.join(ref_dir, "samples.txt")
+    if not os.path.exists(samples_path):
+        names = subprocess.run([BCFTOOLS, "query", "-l", KG_PANEL.format(chrom="chr22")], capture_output=True,
+                               text=True, cwd=ref_dir, check=True).stdout
+        if len(names.split()) < 3000:
+            raise RuntimeError(f"1000 Genomes sample list looks truncated ({len(names.split())} samples)")
+        write_atomic(samples_path, names)
+    ped_path = os.path.join(ref_dir, "ped.txt")
+    if not os.path.exists(ped_path):
+        def check(tmp):
+            with open(tmp) as fh:
+                n = sum(1 for _ in fh)
+            if n < 3000:
+                raise RuntimeError(f"1000 Genomes population table looks truncated ({n} lines)")
+        download(KG_PED, ped_path, check=check)
+    return samples_path, ped_path
 
 
 # ---------------------------------------------------------------- family configuration (DATA/family.json)

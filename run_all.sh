@@ -16,9 +16,15 @@ S="$CODE/scripts"
 BCFTOOLS="${BCFTOOLS:-$(command -v bcftools || echo /opt/homebrew/bin/bcftools)}"
 mkdir -p work results
 skip_pgs=false; skip_fine=false; offline=false
-[[ "${1:-}" == "--no-pgs" ]] && skip_pgs=true
-[[ "${1:-}" == "--quick" ]] && skip_pgs=true && skip_fine=true
-[[ "${1:-}" == "--offline" ]] && skip_pgs=true && skip_fine=true && offline=true
+for arg in "$@"; do  # flags combine, e.g. --quick --offline
+  case "$arg" in
+    --no-pgs)  skip_pgs=true ;;
+    --quick)   skip_pgs=true; skip_fine=true ;;
+    --offline) skip_pgs=true; skip_fine=true; offline=true ;;
+    -h|--help) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown option: $arg (see --help)" >&2; exit 2 ;;
+  esac
+done
 
 step() { printf '\n== %s\n' "$*"; }
 

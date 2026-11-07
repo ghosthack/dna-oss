@@ -745,7 +745,12 @@ def our_call(person, spec):
         return r and r["phenotype"]
     if kind == "hered":
         rs = [r for r in read_tsv("hereditary_markers.tsv") if r["person"] == person and r["marker"].startswith(spec[1])]
-        return rs and ("Not detected" if all(r["alt_copies"] in ("0", "0.0") for r in rs) else "Detected")
+        called = [r for r in rs if r["alt_copies"] != ""]  # "" = marker not on this person's chip
+        if not called:
+            return rs and "Not tested"
+        if any(float(r["alt_copies"]) > 0 for r in called):
+            return "Detected"
+        return "Not detected" + (f" ({len(rs) - len(called)} of {len(rs)} markers not tested)" if len(called) < len(rs) else "")
     if kind == "apoe":
         r = next((r for r in read_tsv("apoe.tsv") if r["person"] == person), None)
         return r and r["apoe"] and (r["apoe"] + (" (no ε4)" if "ε4" not in r["apoe"] else ""))
@@ -1130,7 +1135,7 @@ def pigmentation_section():
     pig = (load_json("pigmentation.json") or {}).get("people", {})
     imputed = ["my" if p == VIEWER else f"{col(p)}'s"
                for p, v in pig.items() if set(v.get("imputed_or_phased", [])) & set(v.get("hair_snps_used", []))]
-    who = " and ".join(imputed)
+    who = esc(" and ".join(imputed))
     imputed_txt = (f" {who[:1].upper() + who[1:]} hair call{'s use' if len(imputed) > 1 else ' uses'} some imputed or "
                    "phased SNPs (statistical, not measured)." if imputed else "")
     lines = [("Eye color (predicted)", eye)]
@@ -1437,7 +1442,10 @@ def main(viewer=None):
              "so the true error rate is higher, though still very low." + chips))
     elif mom and dad:
         stats.append(("Inheritance conflicts", "—", "not computed", "Not computed yet."))
-    if mom and gma:
+    painted = share not in (None, "—") and xo.get("total") not in (None, "—")
+    if mom and gma and not painted:  # grandma listed but her data (or the painting) isn't there yet
+        stats.append(("Maternal crossovers", "—", "not computed", "Needs mom's and grandma's data; not computed yet."))
+    elif mom and gma:
         stats.append(
             ("Maternal crossovers", str(xo.get("total", "—")), f"{share}% of mom's half from grandma",
              "When mom made the egg I came from, her two copies of each chromosome (one from grandma, one from grandpa) "

@@ -96,7 +96,19 @@ def missing(c):
 
 
 def call(gene, data, male):
+    """(diplotype, phenotype, counts). An untested SNP never reads as a normal result: a gene with none of its
+    SNPs genotyped is "Not determinable", and a partial call names the untested alleles."""
     c = counts(data, gene)
+    if all(n is None for n in c.values()):
+        return "not covered", "Not determinable (not on this chip)", c
+    dip, pheno, c = _call(gene, c, male)
+    untested = [SNPS[gene][rs][1] for rs in missing(c)]
+    if untested and gene not in ("DPYD", "CYP2D6") and not pheno.startswith("Not determinable"):
+        pheno += f" ({', '.join(untested)} not tested)"  # DPYD and CYP2D6 word their own caveats
+    return dip, pheno, c
+
+
+def _call(gene, c, male):
     g = lambda rs: c.get(rs) or 0
     if gene == "CYP2C19":
         nf, inc = g("rs4244285") + g("rs4986893"), g("rs12248560")
@@ -153,13 +165,15 @@ def call(gene, data, male):
         return diplotype(star_list(gene, c)), ["Normal function", "Intermediate (Gilbert carrier)",
                                                "Poor function (likely Gilbert syndrome)"][min(n, 2)], c
     if gene == "G6PD":
-        a_minus = g("rs1050828") if g("rs1050829") else 0  # A- copies = 202A count, on a 376G background
+        # A- = 202A on a 376G background. 202A almost never occurs without 376G, so when rs1050829 isn't
+        # genotyped the 202A count alone is used rather than assuming no A- copies.
+        a_minus = g("rs1050828") if c["rs1050829"] is None or g("rs1050829") else 0
         med = g("rs5030868")
         deficient = a_minus or med
         if male:
             pheno = "Deficient" if deficient else "Normal"
-        else:
-            pheno = "Normal" if not deficient else "Variable (heterozygous female)" if max(a_minus, med) == 1 else "Deficient"
+        else:  # one copy of each (compound heterozygote) leaves no normal copy
+            pheno = "Normal" if not deficient else "Variable (heterozygous female)" if a_minus + med == 1 else "Deficient"
         return "variant" if deficient else "B (reference)", pheno, c
     if gene == "CYP2D6":
         if c["rs3892097"] is None:  # *4 is the most common non-functional allele; without it there's no call

@@ -205,7 +205,9 @@ def get_range(start, length, tries=6):
         try:
             req = urllib.request.Request(url, headers={**UA, "Range": f"bytes={start}-{start + length - 1}"})
             with urllib.request.urlopen(req, timeout=300) as r:
-                data = r.read()
+                if r.status != 206:  # a server that ignores Range would stream the whole multi-GB file
+                    raise IOError(f"expected HTTP 206 Partial Content, got {r.status}")
+                data = r.read(length + 1)
             if len(data) == length:
                 return data
             raise IOError(f"short read {len(data)}/{length}")
@@ -455,6 +457,10 @@ def main():
     hash_ok = (my_hind == hind and my_hsnp == hsnp)
     print(f"geno header {magic} nind={nind} nsnp={nsnp} hashes {hind}/{hsnp} "
           f"(computed {my_hind}/{my_hsnp}: {'OK' if hash_ok else 'MISMATCH'})")
+    if not hash_ok:  # the hashes tie each range-fetched record to its sample and SNP; never read past a mismatch
+        sys.exit("The AADR genotype file does not match the downloaded .ind/.snp files (EIGENSOFT header hashes "
+                 "differ): the release was probably updated. Delete work/ancestry_ho/ and rerun, or update the "
+                 "pinned file IDs.")
     rlen = (nsnp + 3) // 4
 
     sel, dups = select_samples(ind, anno)

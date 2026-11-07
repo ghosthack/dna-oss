@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dnalib import (DISCLAIMER_HTML, CHROM_LEN, RESULTS, WORK, children, find, is_autosome, is_het, load_person, people as family,
-                    person, role, sex, siblings, text)
+                    person, role, sex, text)
 
 EXPECTED = {  # kinship coefficient, by role pair (self and siblings are all "child")
     frozenset(["child", "mother"]): ("parent-child", 0.25),

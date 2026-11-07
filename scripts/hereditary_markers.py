@@ -24,6 +24,21 @@ MARKERS = {  # probe → (variant allele, name, panel)
 }
 
 
+def copies(gt, alt, probe, person):
+    """Variant allele count as text; "" (= not tested) for a no-call or an encoding we don't recognise.
+
+    i-probes for indels are expected as D/I letters. If a chip version coded one with bases instead, counting "D"
+    would silently report 0 copies, so such a genotype is treated as untested and reported."""
+    if not gt:
+        return ""
+    expected = set("DI") if alt in "DI" else set("ACGT")
+    if not set(gt) <= expected:
+        print(f"WARNING: {person} {probe} genotype {gt!r} is not in the expected {'/'.join(sorted(expected))} "
+              "coding; reported as not tested", file=sys.stderr)
+        return ""
+    return str(gt.count(alt))
+
+
 def main():
     rows = []
     for p in sorted(people()):
@@ -33,7 +48,7 @@ def main():
         for probe, (alt, name, panel) in MARKERS.items():
             g = data.get(probe)
             rows.append({"person": p, "panel": panel, "marker": name, "probe": probe,
-                         "alt_copies": "" if not g else str(g[2].count(alt))})
+                         "alt_copies": copies(g and g[2], alt, probe, p)})
     path = os.path.join(RESULTS, "hereditary_markers.tsv")
     with open(path, "w", newline="") as fh:
         w = csv.DictWriter(fh, ["person", "panel", "marker", "probe", "alt_copies"], delimiter="\t")

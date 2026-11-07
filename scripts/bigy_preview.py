@@ -49,7 +49,7 @@ def main():
     idx = {int(p): i for i, p in enumerate(lines[0].split("\t")[1:]) if p}
     people = {l.split("\t")[0]: l.split("\t")[1:] for l in lines[1:] if l and l.split("\t")[0] in men}
     out = {"branches": {}, "key_snps": {}}
-    for person, calls in people.items():
+    for who, calls in people.items():
         counts = {name: {"derived": 0, "ancestral": 0} for name in BRANCHES.values()}
         for line in open(ISOGG):
             m = re.match(r"(\S+)\s+(R1b1a2a1a\S+)\s+(\d+)\s+([ACGT])->([ACGT])", line)
@@ -63,8 +63,8 @@ def main():
                     counts[branch]["derived"] += 1
                 elif g == m.group(4):
                     counts[branch]["ancestral"] += 1
-        out["branches"][person] = counts
-        out["key_snps"][person] = {n: (calls[idx[p]] if p in idx else "not on chip") for n, p in KEY_SNPS.items()}
+        out["branches"][who] = counts
+        out["key_snps"][who] = {n: (calls[idx[p]] if p in idx else "not on chip") for n, p in KEY_SNPS.items()}
     json.dump(out, open(OUT, "w"), indent=1)
     print(OUT)
 

@@ -118,19 +118,27 @@ fi
 
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 
-# fetch URL DEST [SHA256]: download to DEST.part, verify, then move into place. Skips an existing DEST.
+# Pinned checksums for files whose URL has no version in it (refs.sha256: "<sha256>  <key>" per line).
+PINS="$CODE/refs.sha256"
+pinned() { [[ -f "$PINS" ]] && awk -v k="$1" '$2 == k {print $1; exit}' "$PINS"; return 0; }
+
+# fetch URL DEST [SHA256 | pin:KEY]: download to DEST.part, verify, then move into place. Skips an existing DEST.
+# "pin:KEY" looks the checksum up in refs.sha256; a file with no pin yet is accepted and its checksum printed.
 fetch() {
-  local url="$1" dest="$2" want="${3:-}"
+  local url="$1" dest="$2" want="${3:-}" key=""
+  if [[ "$want" == pin:* ]]; then key="${want#pin:}"; want="$(pinned "$key")"; fi
   if [[ -s "$dest" ]]; then skip "$dest"; return 0; fi
   mkdir -p "$(dirname "$dest")"
   printf '   get  %s\n' "${dest#"$CODE/"}"
   curl -fSL --retry 3 --retry-delay 5 --connect-timeout 30 -s -o "$dest.part" "$url"
-  if [[ -n "$want" ]]; then
-    local got; got="$(sha256 "$dest.part")"
-    if [[ "$got" != "$want" ]]; then
-      rm -f "$dest.part"; echo "checksum mismatch for $url (got $got)" >&2; return 1
-    fi
+  local got; got="$(sha256 "$dest.part")"
+  if [[ -n "$want" && "$got" != "$want" ]]; then
+    rm -f "$dest.part"
+    echo "checksum mismatch for $url (got $got, expected $want)." >&2
+    [[ -n "$key" ]] && echo "   If the upstream file was deliberately updated, update '$key' in refs.sha256." >&2
+    return 1
   fi
+  [[ -n "$key" && -z "$want" ]] && printf '   unpinned: %s  %s\n' "$got" "$key"
   mv "$dest.part" "$dest"
 }
 
@@ -162,7 +170,7 @@ fi
 
 # ---------- revised Cambridge Reference Sequence (mt_vcf.py) ----------
 step "rCRS (NC_012920.1)"
-if fetch "$RCRS_URL" "$TOOLS/ref/rCRS.fasta"; then
+if fetch "$RCRS_URL" "$TOOLS/ref/rCRS.fasta" pin:rCRS.fasta; then
   len="$(grep -v '^>' "$TOOLS/ref/rCRS.fasta" | tr -d '\n\r ' | wc -c | tr -d ' ')"
   [[ "$len" == 16569 ]] || { echo "   rCRS.fasta has $len bases, expected 16569; removed, rerun to retry" >&2
                              rm -f "$TOOLS/ref/rCRS.fasta"; failed+=(rCRS); }
@@ -172,13 +180,13 @@ else failed+=(rCRS); fi
 step "PGS Catalog scoring files (GRCh38 harmonized)"
 for id in $PGS_IDS; do
   dest="$TOOLS/pgs/${id}_hmPOS_GRCh38.txt.gz"
-  fetch "${PGS_URL//\{id\}/$id}" "$dest" || { failed+=("$id"); continue; }
+  fetch "${PGS_URL//\{id\}/$id}" "$dest" "pin:${id}_hmPOS_GRCh38.txt.gz" || { failed+=("$id"); continue; }
   gzip -t "$dest" 2>/dev/null || { echo "   $id is corrupt; removed, rerun to retry" >&2; rm -f "$dest"; failed+=("$id"); }
 done
 
 # ---------- basemap source (basemap.py) ----------
 step "world-atlas 2.0.2 countries-50m (Natural Earth)"
-fetch "$WORLD_ATLAS_URL" "$DATA/work/map/countries-50m.json" || failed+=(world-atlas)
+fetch "$WORLD_ATLAS_URL" "$DATA/work/map/countries-50m.json" pin:countries-50m.json || failed+=(world-atlas)
 
 # ---------- Neanderthal references (neanderthal.py) ----------
 step "Sprime segments ($SPRIME_POPS) + UCSC hg19->hg38 chain"
@@ -192,7 +200,7 @@ for pop in $SPRIME_POPS; do
   compgen -G "$SP/mendeley_data/$pop.chr*.ND_match" >/dev/null \
     || { echo "   $pop tarball did not unpack to mendeley_data/$pop.chr*.ND_match" >&2; failed+=("sprime-$pop"); }
 done
-fetch "$CHAIN_URL" "$DATA/work/neanderthal/hg19ToHg38.over.chain.gz" || failed+=(liftover-chain)
+fetch "$CHAIN_URL" "$DATA/work/neanderthal/hg19ToHg38.over.chain.gz" pin:hg19ToHg38.over.chain.gz || failed+=(liftover-chain)
 
 # ---------- Python venv (yhaplo for the Y step, numpy for ancestry_ho.py) ----------
 if ! $no_venv; then

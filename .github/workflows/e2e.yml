@@ -1,0 +1,67 @@
+name: End-to-end demo
+# Downloads the public references, generates the synthetic demo family and runs the whole offline pipeline on it.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q bcftools default-jre-headless unzip
+      - name: Cache references and the demo's Ensembl answers
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools
+            .venv
+            work
+            demo-data/.ensembl_cache.json
+          key: refs-${{ runner.os }}-${{ hashFiles('fetch_refs.sh', 'requirements.txt', 'refs.sha256') }}
+      - name: Fetch references
+        run: ./fetch_refs.sh 2>&1 | tee fetch.log
+      - name: Reference checksums (for refs.sha256)
+        run: |
+          grep 'unpinned:' fetch.log || echo "every downloaded file is pinned (or came from the cache)"
+          sha256sum tools/ref/rCRS.fasta tools/pgs/*.txt.gz work/map/countries-50m.json \
+            work/neanderthal/hg19ToHg38.over.chain.gz | sed 's#  .*/#  #'
+      - name: Generate the demo family
+        run: python3 -I scripts/make_demo.py
+      - name: Run the pipeline
+        run: DNA_DATA=$PWD/demo-data ./run_all.sh --offline
+      - name: Check the pages
+        run: |
+          cd demo-data/results
+          test -s index.html
+          test -s pharmacogenomics.html
+          ls doctor/*.html
+          missing=0
+          for f in $(find . -name '*.html'); do
+            grep -q 'For learning and research only. Not medical advice.' "$f" || { echo "no notice: $f"; missing=1; }
+          done
+          exit $missing
+      - name: Leak checker catches the demo family
+        # The demo's names are public on purpose (make_demo.py defines them), so with the demo's family.json as the
+        # "private" data the checker must flag them: this proves the denylist works end to end.
+        run: |
+          if DNA_DATA=$PWD/demo-data python3 -I scripts/leak_check.py --repo . > leak.log 2>&1; then
+            cat leak.log; echo "leak_check found nothing; it should flag the demo names in make_demo.py"; exit 1
+          fi
+          cat leak.log
+          grep -q 'denylist    scripts/make_demo.py' leak.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-results
+          path: demo-data/results
+          retention-days: 7

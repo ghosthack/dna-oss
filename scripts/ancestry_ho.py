@@ -1053,7 +1053,6 @@ def _person_display(out, who, typ=None):
     tree = []
     fits = _fits(out, who)
     if fits and who != "grandpa":
-        best = fits[0]
         good = [f for f in fits if f["not_distinguishable_from_best"]]
         bad = [f for f in fits if f["fit"] < 0.05]
         tree.append(("Family-tree simulations (admixture profile, main configuration): "

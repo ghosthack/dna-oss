@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import ancestry  # noqa: E402
 import dnalib  # noqa: E402
 import doctor  # noqa: E402
+import hereditary_markers  # noqa: E402
 import pgs  # noqa: E402
 import pgx  # noqa: E402
 import report_archive  # noqa: E402
@@ -135,6 +136,44 @@ class ParsingTest(unittest.TestCase):
     def test_report_file_without_date(self):
         self.assertEqual(report_archive.capture_date("23andMe_reports_summary_alex.pdf"), "")
         self.assertEqual(report_archive.capture_date("23andMe_reports_summary_2024-05-01.pdf"), "2024-05-01")
+
+
+class ChipMergeTest(unittest.TestCase):
+    def test_discordant_snps_dropped_and_strand_flips_counted(self):
+        a = {f"rs{i}": ("1", i, "AG") for i in range(100)}
+        b = dict(a)
+        b["rs1"] = ("1", 1, "CT")  # the same call on the opposite strand
+        merged, stats = dnalib.merge(a, b)
+        self.assertNotIn("rs1", merged)
+        self.assertEqual(stats["discordant"], 1)
+        self.assertEqual(stats["strand_complement"], 1)
+
+    def test_hemizygous_x_coding_is_not_discordant(self):
+        _, stats = dnalib.merge({"rs1": ("X", 1, "A")}, {"rs1": ("X", 1, "AA")})
+        self.assertEqual(stats["discordant"], 0)
+
+
+class HereditaryMarkerTest(unittest.TestCase):
+    def test_indel_probe_counts(self):
+        self.assertEqual(hereditary_markers.copies("DI", "D", "i4000377", "p"), "1")
+        self.assertEqual(hereditary_markers.copies("II", "D", "i4000377", "p"), "0")
+
+    def test_unexpected_encoding_is_untested_not_zero(self):
+        self.assertEqual(hereditary_markers.copies("AA", "D", "i4000377", "p"), "")
+
+    def test_no_call(self):
+        self.assertEqual(hereditary_markers.copies(None, "C", "rs34612342", "p"), "")
+
+
+class DisclaimerTest(unittest.TestCase):
+    def test_every_page_generator_carries_the_notice(self):
+        scripts = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
+        for name in sorted(os.listdir(scripts)):
+            if not name.endswith(".py"):
+                continue
+            src = open(os.path.join(scripts, name), encoding="utf-8").read()
+            if "<!doctype html>" in src.lower() or "<html" in src.lower():
+                self.assertTrue("DISCLAIMER_HTML" in src or "DISCLAIMER_LEAD" in src, name)
 
 
 if __name__ == "__main__":

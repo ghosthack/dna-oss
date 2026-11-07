@@ -50,8 +50,15 @@ jobs:
             grep -q 'For learning and research only. Not medical advice.' "$f" || { echo "no notice: $f"; missing=1; }
           done
           exit $missing
-      - name: Leak check on the demo (its family.json as the private data)
-        run: DNA_DATA=$PWD/demo-data python3 -I scripts/leak_check.py --repo .
+      - name: Leak checker catches the demo family
+        # The demo's names are public on purpose (make_demo.py defines them), so with the demo's family.json as the
+        # "private" data the checker must flag them: this proves the denylist works end to end.
+        run: |
+          if DNA_DATA=$PWD/demo-data python3 -I scripts/leak_check.py --repo . > leak.log 2>&1; then
+            cat leak.log; echo "leak_check found nothing; it should flag the demo names in make_demo.py"; exit 1
+          fi
+          cat leak.log
+          grep -q 'denylist    scripts/make_demo.py' leak.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
